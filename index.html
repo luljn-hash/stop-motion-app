@@ -66,8 +66,8 @@
     }
 
     .toggle-box {
-      background: #fff3e0;
-      border: 1px solid #ffe0b2;
+      background: #e8f5e9;
+      border: 1px solid #c8e6c9;
       padding: 10px 14px;
       border-radius: 10px;
       display: flex;
@@ -77,12 +77,12 @@
       margin: 10px 0;
       font-weight: bold;
       font-size: 0.95rem;
-      color: #e65100;
+      color: #2e7d32;
     }
     .toggle-box input[type="checkbox"] {
       width: 20px;
       height: 20px;
-      accent-color: var(--primary);
+      accent-color: var(--secondary);
       cursor: pointer;
     }
 
@@ -120,7 +120,7 @@
       padding: 8px 12px;
       border-radius: 8px;
       font-size: 0.85rem;
-      font-weight: 500;
+      font-weight: bold;
       margin-bottom: 8px;
     }
 
@@ -202,7 +202,7 @@
         display: flex !important; flex-direction: column; align-items: center; justify-content: center;
       }
       .print-title { font-size: 15pt; font-weight: bold; margin-bottom: 8px; }
-      .print-container { display: grid !important; gap: 6mm; justify-content: center; }
+      .print-container { display: grid !important; gap: 8mm; justify-content: center; }
       .grid-box { border: 4px solid #000; border-radius: 4px; position: relative; box-sizing: border-box; }
       .grid-number { position: absolute; top: 3mm; left: 3mm; font-size: 13pt; font-weight: bold; color: #aaa; }
       .grid-hint { position: absolute; bottom: 3mm; right: 3mm; font-size: 8pt; color: #aaa; }
@@ -222,7 +222,6 @@
   <!-- Step 1: Settings & Capture -->
   <div class="card" id="uploadCard">
     
-    <!-- Auto-Grid Checkbox Toggle -->
     <label class="toggle-box">
       <input type="checkbox" id="autoDetectToggle" checked>
       <span>✨ Auto-Detect & Snap to Squares</span>
@@ -233,7 +232,7 @@
       <button class="btn btn-purple btn-sm" onclick="toggleSettings()">⚙️ Customize</button>
     </div>
 
-    <!-- Collapsible Settings Panel -->
+    <!-- Settings Panel -->
     <div class="settings-panel" id="settingsPanel" style="display:none;">
       <div style="font-weight:bold; margin-bottom:6px;">⚡ Quick Presets:</div>
       <div class="preset-group">
@@ -275,11 +274,11 @@
 
   <!-- Step 2: Interactive Alignment with Auto-Snap -->
   <div class="card" id="adjustCard" style="display:none;">
-    <div class="status-banner" id="snapStatusMsg" style="background:#e8f5e9; color:#2e7d32;">✨ Detecting squares...</div>
+    <div class="status-banner" id="snapStatusMsg" style="background:#e8f5e9; color:#2e7d32;">✨ Auto-snapping grid...</div>
     
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-      <span style="font-size:0.85rem; font-weight:bold;">🎯 Drag red circles to fine-tune</span>
-      <button class="btn btn-purple btn-sm" onclick="triggerAutoDetect()">⚡ Re-Snap Auto Grid</button>
+      <span style="font-size:0.85rem; font-weight:bold;">🎯 Drag red circles to Box Corners</span>
+      <button class="btn btn-purple btn-sm" onclick="triggerAutoDetect()">⚡ Re-Snap</button>
     </div>
 
     <canvas id="cropCanvas"></canvas>
@@ -445,14 +444,14 @@
       reader.readAsDataURL(file);
     }
 
-    // --- ENHANCED DETECTION & AUTO-SNAP ENGINE ---
+    // --- ENHANCED OTSU DETECTION & TRUE BOX SNAPPING ---
     function runSmartAutoDetect() {
       const autoEnabled = document.getElementById('autoDetectToggle').checked;
       const banner = document.getElementById('snapStatusMsg');
 
       if (!autoEnabled) {
         setManualDefaultCorners();
-        banner.innerText = '✋ Manual mode active. Drag red circles to fit.';
+        banner.innerText = '✋ Manual mode. Drag red circles to the outer corners of your boxes.';
         banner.style.background = '#e3f2fd';
         banner.style.color = '#1565c0';
         return false;
@@ -460,12 +459,11 @@
 
       if (!openCvLoaded || !loadedImage) {
         setManualDefaultCorners();
-        banner.innerText = '⏳ Detector still loading. Manual mode active.';
+        banner.innerText = '⏳ Detector loading... Drag red circles to fit.';
         return false;
       }
 
-      // 1. Create a downscaled image for scale-invariant edge & contour detection
-      const maxDim = 800;
+      const maxDim = 900;
       const origW = loadedImage.width;
       const origH = loadedImage.height;
       const scale = Math.min(1.0, maxDim / Math.max(origW, origH));
@@ -490,19 +488,19 @@
         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
         cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
 
-        // Adaptive threshold with kernel calibrated to 800px image
-        cv.adaptiveThreshold(blurred, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 29, 4);
+        // Otsu thresholding specifically designed for dark borders on light paper
+        cv.threshold(blurred, thresh, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
 
-        // Morphological close to connect drawn line gaps
         let kernel = cv.Mat.ones(3, 3, cv.CV_8U);
         cv.morphologyEx(thresh, closed, cv.MORPH_CLOSE, kernel);
         kernel.delete();
 
-        cv.findContours(closed, contours, hierarchy, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE);
+        cv.findContours(closed, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);
 
         let validBoxes = [];
-        const minArea = (detW * detH) * 0.006;
-        const maxArea = (detW * detH) * 0.50;
+        const totalArea = detW * detH;
+        const minArea = totalArea * 0.015;
+        const maxArea = totalArea * 0.45;
 
         for (let i = 0; i < contours.size(); ++i) {
           let cnt = contours.get(i);
@@ -516,7 +514,7 @@
           if (approx.rows === 4 && cv.isContourConvex(approx)) {
             let rect = cv.boundingRect(approx);
             let asp = rect.width / rect.height;
-            if (asp >= 0.55 && asp <= 2.2) {
+            if (asp >= 0.65 && asp <= 2.2) {
               validBoxes.push({
                 x: rect.x / scale,
                 y: rect.y / scale,
@@ -535,16 +533,24 @@
         let deduped = [];
         validBoxes.sort((a,b) => b.area - a.area);
         validBoxes.forEach(b => {
-          let overlaps = deduped.some(d => Math.abs(d.cx - b.cx) < (b.w * 0.4) && Math.abs(d.cy - b.cy) < (b.h * 0.4));
+          let overlaps = deduped.some(d => Math.hypot(d.cx - b.cx, d.cy - b.cy) < (b.w * 0.35));
           if (!overlaps) deduped.push(b);
         });
 
-        // If 2 or more panels found, cluster into rows & columns
         if (deduped.length >= 2) {
+          // Sort by row (Y) then column (X)
+          let avgH = deduped.reduce((a,b)=>a+b.h, 0) / deduped.length;
+          deduped.sort((a, b) => {
+            let rowA = Math.floor(a.cy / (avgH * 0.8));
+            let rowB = Math.floor(b.cy / (avgH * 0.8));
+            if (rowA !== rowB) return rowA - rowB;
+            return a.cx - b.cx;
+          });
+
+          // Detect columns & rows
           let xs = deduped.map(b => b.cx).sort((a,b) => a - b);
           let ys = deduped.map(b => b.cy).sort((a,b) => a - b);
           let avgW = deduped.reduce((a,b)=>a+b.w, 0) / deduped.length;
-          let avgH = deduped.reduce((a,b)=>a+b.h, 0) / deduped.length;
 
           let colClusters = clusterCenters(xs, avgW * 0.6);
           let rowClusters = clusterCenters(ys, avgH * 0.6);
@@ -552,7 +558,6 @@
           let detectedCols = Math.max(1, Math.min(4, colClusters.length));
           let detectedRows = Math.max(1, Math.min(5, rowClusters.length));
 
-          // Set grid
           gridCols = detectedCols;
           gridRows = detectedRows;
           document.getElementById('colsInput').value = detectedCols;
@@ -560,23 +565,20 @@
           currentPresetName = `${gridCols}×${gridRows} (${gridCols * gridRows} Frames)`;
           updateGridSummary();
 
-          // Snap outer 4 corners tightly around detected boxes
+          // TRUE CORNER SNAPPING: Snap directly to Box 1, Box 2, Box 6, Box 5
           let minX = Math.min(...deduped.map(b => b.x));
           let minY = Math.min(...deduped.map(b => b.y));
           let maxX = Math.max(...deduped.map(b => b.x + b.w));
           let maxY = Math.max(...deduped.map(b => b.y + b.h));
 
-          const padX = (maxX - minX) * 0.02;
-          const padY = (maxY - minY) * 0.02;
-
           corners = [
-            { x: Math.max(0, minX - padX), y: Math.max(0, minY - padY) },
-            { x: Math.min(origW, maxX + padX), y: Math.max(0, minY - padY) },
-            { x: Math.min(origW, maxX + padX), y: Math.min(origH, maxY + padY) },
-            { x: Math.max(0, minX - padX), y: Math.min(origH, maxY + padY) }
+            { x: minX, y: minY }, // Top-Left of Box 1
+            { x: maxX, y: minY }, // Top-Right of Box 2
+            { x: maxX, y: maxY }, // Bottom-Right of Box 6
+            { x: minX, y: maxY }  // Bottom-Left of Box 5
           ];
 
-          banner.innerText = `✅ Auto-detected ${deduped.length} squares (${detectedCols}×${detectedRows}) & snapped grid!`;
+          banner.innerText = `✅ Snapped directly to ${deduped.length} detected squares!`;
           banner.style.background = '#e8f5e9';
           banner.style.color = '#2e7d32';
           return true;
@@ -588,9 +590,8 @@
         src.delete(); gray.delete(); blurred.delete(); thresh.delete(); closed.delete(); contours.delete(); hierarchy.delete();
       }
 
-      // If no distinct panels found, fall back to standard placement
       setManualDefaultCorners();
-      banner.innerText = '⚠️ Could not clearly isolate squares. Drag the red circles to fit.';
+      banner.innerText = '🎯 Drag the 4 red circles directly onto the outer corners of Box 1, 2, 5 & 6.';
       banner.style.background = '#fff3e0';
       banner.style.color = '#e65100';
       return false;
@@ -615,11 +616,12 @@
       if (!loadedImage) return;
       const w = loadedImage.width;
       const h = loadedImage.height;
+      // Default to central 75% of page (where drawings normally sit)
       corners = [
-        { x: w * 0.08, y: h * 0.08 },
-        { x: w * 0.92, y: h * 0.08 },
-        { x: w * 0.92, y: h * 0.92 },
-        { x: w * 0.08, y: h * 0.92 }
+        { x: w * 0.15, y: h * 0.15 },
+        { x: w * 0.85, y: h * 0.15 },
+        { x: w * 0.85, y: h * 0.85 },
+        { x: w * 0.15, y: h * 0.85 }
       ];
     }
 
@@ -637,20 +639,40 @@
       cropCanvas.width = loadedImage.width;
       cropCanvas.height = loadedImage.height;
 
-      // Run Auto-Detect & Snap
       runSmartAutoDetect();
 
       document.getElementById('confirmCropBtn').innerText = isAppending ? '➕ Append Page Frames' : '✨ Generate Stop Motion';
       drawAdjuster();
     }
 
+    // Helper: Normalized cell coordinates accounting for physical 8mm paper gaps
+    function getCellBounds(c, r) {
+      // Relative gap ratios between boxes
+      const gapX = gridCols > 1 ? 0.06 : 0.0;
+      const gapY = gridRows > 1 ? 0.04 : 0.0;
+
+      const totalGapW = gapX * (gridCols - 1);
+      const totalGapH = gapY * (gridRows - 1);
+
+      const cellW = (1.0 - totalGapW) / gridCols;
+      const cellH = (1.0 - totalGapH) / gridRows;
+
+      const u0 = c * (cellW + gapX);
+      const u1 = u0 + cellW;
+
+      const v0 = r * (cellH + gapY);
+      const v1 = v0 + cellH;
+
+      return { u0, u1, v0, v1 };
+    }
+
     function drawAdjuster() {
       cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
       cropCtx.drawImage(loadedImage, 0, 0);
 
-      // Outer blue quad
-      cropCtx.strokeStyle = '#2196f3';
-      cropCtx.lineWidth = Math.max(4, cropCanvas.width * 0.005);
+      // Outer quad connecting the 4 pins
+      cropCtx.strokeStyle = 'rgba(33, 150, 243, 0.6)';
+      cropCtx.lineWidth = Math.max(3, cropCanvas.width * 0.004);
       cropCtx.beginPath();
       cropCtx.moveTo(corners[0].x, corners[0].y);
       cropCtx.lineTo(corners[1].x, corners[1].y);
@@ -659,21 +681,18 @@
       cropCtx.closePath();
       cropCtx.stroke();
 
-      // Yellow sub-boxes preview
-      cropCtx.strokeStyle = 'rgba(255, 235, 59, 0.95)';
-      cropCtx.lineWidth = Math.max(2, cropCanvas.width * 0.0035);
-
-      const colW = 1.0 / gridCols;
-      const rowH = 1.0 / gridRows;
-      const padU = colW * 0.04;
-      const padV = rowH * 0.04;
+      // Yellow sub-boxes with exact template spacing
+      cropCtx.strokeStyle = '#ffeb3b';
+      cropCtx.lineWidth = Math.max(3, cropCanvas.width * 0.0045);
 
       for (let r = 0; r < gridRows; r++) {
         for (let c = 0; c < gridCols; c++) {
-          const p0 = interp(c * colW + padU, r * rowH + padV);
-          const p1 = interp((c + 1) * colW - padU, r * rowH + padV);
-          const p2 = interp((c + 1) * colW - padU, (r + 1) * rowH - padV);
-          const p3 = interp(c * colW + padU, (r + 1) * rowH - padV);
+          const { u0, u1, v0, v1 } = getCellBounds(c, r);
+
+          const p0 = interp(u0, v0);
+          const p1 = interp(u1, v0);
+          const p2 = interp(u1, v1);
+          const p3 = interp(u0, v1);
 
           cropCtx.beginPath();
           cropCtx.moveTo(p0.x, p0.y);
@@ -753,17 +772,14 @@
       const newPageFrames = [];
       const srcMat = cv.imread(cropCanvas);
 
-      const colW = 1.0 / gridCols;
-      const rowH = 1.0 / gridRows;
-      const padU = colW * 0.04;
-      const padV = rowH * 0.04;
-
       for (let r = 0; r < gridRows; r++) {
         for (let c = 0; c < gridCols; c++) {
-          const p0 = interp(c * colW + padU, r * rowH + padV);
-          const p1 = interp((c + 1) * colW - padU, r * rowH + padV);
-          const p2 = interp((c + 1) * colW - padU, (r + 1) * rowH - padV);
-          const p3 = interp(c * colW + padU, (r + 1) * rowH - padV);
+          const { u0, u1, v0, v1 } = getCellBounds(c, r);
+
+          const p0 = interp(u0, v0);
+          const p1 = interp(u1, v0);
+          const p2 = interp(u1, v1);
+          const p3 = interp(u0, v1);
 
           let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [p0.x, p0.y, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y]);
           let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, outWidth, 0, outWidth, outHeight, 0, outHeight]);
@@ -1032,7 +1048,6 @@
       });
     }
 
-    // Init
     updateDimensions();
   </script>
 </body>
