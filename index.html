@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Stop Motion Studio (Widescreen & Post-it)</title>
+  <title>Smart Stop Motion Studio</title>
   <!-- GIF creation library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.3.2/gifshot.min.js"></script>
   <!-- ZIP packing for JPGs -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <!-- OpenCV.js for dewarping & perspective transform -->
+  <!-- OpenCV.js for dewarping & computer vision auto-detection -->
   <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
 
   <style>
@@ -93,6 +93,16 @@
       border: 1px solid #ccc;
       font-size: 0.9rem;
       background: #fff;
+    }
+
+    .status-banner {
+      background: #e8f5e9;
+      color: #2e7d32;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-bottom: 8px;
     }
 
     #cropCanvas {
@@ -183,8 +193,8 @@
 </head>
 <body>
 
-  <h1>🎬 Stop Motion Studio</h1>
-  <p>Animate square Post-its or 1:1.85 cinematic widescreen rectangles!</p>
+  <h1>🎬 Smart Stop Motion Studio</h1>
+  <p>Auto-detects squares, auto-snaps grid, and creates animations!</p>
 
   <!-- Hidden Camera Inputs -->
   <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
@@ -193,7 +203,7 @@
   <!-- Step 1: Settings & Capture -->
   <div class="card" id="uploadCard">
     <div style="display: flex; justify-content: space-between; align-items: center;">
-      <span style="font-weight: bold; font-size: 0.95rem;">📐 Setup: <span id="gridSummary">2×3 (6 Frames) • 1:1.85 Cinema</span></span>
+      <span style="font-weight: bold; font-size: 0.95rem;">📐 Grid: <span id="gridSummary">Auto-Detect Enabled</span></span>
       <button class="btn btn-purple btn-sm" onclick="toggleSettings()">⚙️ Customize</button>
     </div>
 
@@ -201,21 +211,20 @@
     <div class="settings-panel" id="settingsPanel" style="display:none;">
       <div style="font-weight:bold; margin-bottom:6px;">⚡ Quick Presets:</div>
       <div class="preset-group">
+        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 3, 1.0, '6 Square Post-its')">🟨 6 Square (2×3)</button>
+        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 2, 1.0, '4 Square Post-its')">🟨 4 Square (2×2)</button>
         <button class="btn btn-outline btn-sm" onclick="setPreset(2, 3, 1.85, '6 Cinema (1.85:1)')">🎞️ 6 Cinema (1.85:1)</button>
         <button class="btn btn-outline btn-sm" onclick="setPreset(2, 4, 1.85, '8 Cinema (1.85:1)')">🎞️ 8 Cinema (1.85:1)</button>
-        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 3, 1.0, '6 Square Post-its')">🟨 6 Square Post-it</button>
-        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 2, 1.0, '4 Square Post-its')">🟨 4 Square Post-it</button>
       </div>
       <hr style="border:0; border-top:1px solid #ddd; margin:10px 0;">
       
-      <!-- Aspect Ratio Dropdown -->
       <div class="settings-row">
         <label><strong>Frame Ratio:</strong></label>
         <select id="ratioSelect" onchange="onCustomGridChange()">
-          <option value="1.85" selected>1.85:1 Cinematic Widescreen</option>
+          <option value="1.0" selected>1:1 Square (Post-it)</option>
+          <option value="1.85">1.85:1 Cinematic Widescreen</option>
           <option value="1.777">16:9 Widescreen (Video)</option>
           <option value="1.333">4:3 Standard Frame</option>
-          <option value="1.0">1:1 Square (Post-it)</option>
         </select>
       </div>
 
@@ -234,17 +243,24 @@
     </div>
     
     <div style="margin-top: 8px;">
-      <label for="cameraInput" class="btn btn-green" style="font-size: 1.05rem; padding: 12px 24px;">📷 Snap First Page</label>
+      <label for="cameraInput" class="btn btn-green" style="font-size: 1.05rem; padding: 12px 24px;">📷 Snap Photo / Page 1</label>
     </div>
   </div>
 
-  <!-- Step 2: Interactive 4-Corner Alignment -->
+  <!-- Step 2: Interactive Alignment with Auto-Snap -->
   <div class="card" id="adjustCard" style="display:none;">
-    <h3 style="margin:4px 0 8px;">🎯 Drag 4 corners to fit your sheet</h3>
+    <div class="status-banner" id="snapStatusMsg">✨ Auto-snapping grid to detected squares...</div>
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+      <span style="font-size:0.85rem; font-weight:bold;">🎯 Drag corners to nudge if needed</span>
+      <button class="btn btn-purple btn-sm" onclick="triggerAutoDetect()">⚡ Re-Snap Grid</button>
+    </div>
+
     <canvas id="cropCanvas"></canvas>
+
     <div style="margin-top: 10px;">
-      <button class="btn btn-blue" id="confirmCropBtn" onclick="cropAndAnimate()">✨ Process Page</button>
-      <button class="btn btn-outline" onclick="cancelAdjust()">🔄 Cancel</button>
+      <button class="btn btn-blue" id="confirmCropBtn" onclick="cropAndAnimate()">✨ Generate Stop Motion</button>
+      <button class="btn btn-outline" onclick="cancelAdjust()">🔄 Retake</button>
     </div>
   </div>
 
@@ -285,17 +301,15 @@
   </div>
 
   <script>
-    // Grid & Ratio Setup
+    let openCvLoaded = false;
     let gridCols = 2;
     let gridRows = 3;
-    let aspectRatio = 1.85; // 1.85:1 Cinema default
+    let aspectRatio = 1.0;
     let currentPresetName = '2×3 (6 Frames)';
 
-    // Computed Output Dimensions
-    let outWidth = 555;
-    let outHeight = 300;
+    let outWidth = 500;
+    let outHeight = 500;
 
-    // State
     let loadedImage = null;
     let isAppending = false;
     let corners = [];
@@ -310,7 +324,8 @@
     const cropCtx = cropCanvas.getContext('2d');
 
     function onOpenCvReady() {
-      console.log('OpenCV loaded');
+      openCvLoaded = true;
+      console.log('OpenCV Engine Active');
     }
 
     function toggleSettings() {
@@ -320,11 +335,11 @@
 
     function updateDimensions() {
       if (aspectRatio >= 1) {
-        outWidth = 555;
-        outHeight = Math.round(555 / aspectRatio);
+        outWidth = 500;
+        outHeight = Math.round(500 / aspectRatio);
       } else {
-        outHeight = 555;
-        outWidth = Math.round(555 * aspectRatio);
+        outHeight = 500;
+        outWidth = Math.round(500 * aspectRatio);
       }
     }
 
@@ -344,7 +359,7 @@
     function onCustomGridChange() {
       gridCols = Math.max(1, Math.min(5, parseInt(document.getElementById('colsInput').value) || 2));
       gridRows = Math.max(1, Math.min(6, parseInt(document.getElementById('rowsInput').value) || 3));
-      aspectRatio = parseFloat(document.getElementById('ratioSelect').value) || 1.85;
+      aspectRatio = parseFloat(document.getElementById('ratioSelect').value) || 1.0;
       currentPresetName = `${gridCols}×${gridRows} (${gridCols * gridRows} Frames)`;
       updateDimensions();
       updateGridSummary();
@@ -361,14 +376,9 @@
       const container = document.getElementById('printBoxesContainer');
       container.innerHTML = '';
       
-      // Calculate box physical dimensions in mm
       let boxW = 80;
       let boxH = Math.round(80 / aspectRatio);
-
-      if (aspectRatio === 1.0) {
-        boxW = 76;
-        boxH = 76;
-      }
+      if (aspectRatio === 1.0) { boxW = 76; boxH = 76; }
 
       container.style.gridTemplateColumns = `repeat(${gridCols}, ${boxW}mm)`;
       container.style.gridTemplateRows = `repeat(${gridRows}, ${boxH}mm)`;
@@ -410,6 +420,135 @@
       reader.readAsDataURL(file);
     }
 
+    // --- AUTOMATIC PANEL DETECTION & CORNER SNAPPING ---
+    function autoDetectAndSnapGrid() {
+      if (!openCvLoaded || !loadedImage) return false;
+
+      let src = cv.imread(cropCanvas);
+      let gray = new cv.Mat();
+      let thresh = new cv.Mat();
+      let contours = new cv.MatVector();
+      let hierarchy = new cv.Mat();
+
+      try {
+        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+        cv.GaussianBlur(gray, gray, new cv.Size(5, 5), 0);
+        cv.adaptiveThreshold(gray, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 15, 3);
+        cv.findContours(thresh, contours, hierarchy, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE);
+
+        let detected = [];
+        const totalArea = cropCanvas.width * cropCanvas.height;
+        const minArea = totalArea * 0.008;
+        const maxArea = totalArea * 0.65;
+
+        for (let i = 0; i < contours.size(); ++i) {
+          let cnt = contours.get(i);
+          let approx = new cv.Mat();
+          let peri = cv.arcLength(cnt, true);
+          cv.approxPolyDP(cnt, approx, 0.035 * peri, true);
+          let area = cv.contourArea(cnt);
+
+          if (approx.rows === 4 && area > minArea && area < maxArea) {
+            let rect = cv.boundingRect(approx);
+            let asp = rect.width / rect.height;
+            if (asp >= 0.5 && asp <= 2.5) {
+              detected.push({
+                x: rect.x, y: rect.y, w: rect.width, h: rect.height,
+                cx: rect.x + rect.width / 2,
+                cy: rect.y + rect.height / 2,
+                area: area
+              });
+            }
+          }
+          approx.delete();
+        }
+
+        // Filter overlapping duplicate contours
+        let uniqueBoxes = [];
+        detected.sort((a,b) => b.area - a.area);
+        detected.forEach(box => {
+          let isNested = uniqueBoxes.some(u => 
+            Math.abs(u.cx - box.cx) < (box.w * 0.4) && Math.abs(u.cy - box.cy) < (box.h * 0.4)
+          );
+          if (!isNested) uniqueBoxes.push(box);
+        });
+
+        // If boxes found, cluster rows & columns automatically
+        if (uniqueBoxes.length >= 2) {
+          let xs = uniqueBoxes.map(b => b.cx).sort((a,b) => a - b);
+          let ys = uniqueBoxes.map(b => b.cy).sort((a,b) => a - b);
+
+          let xClusters = clusterCoordinates(xs, cropCanvas.width * 0.15);
+          let yClusters = clusterCoordinates(ys, cropCanvas.height * 0.12);
+
+          let detectedCols = Math.max(1, Math.min(4, xClusters.length));
+          let detectedRows = Math.max(1, Math.min(5, yClusters.length));
+
+          // Snap corners to the bounding perimeter of detected panels
+          let minX = Math.min(...uniqueBoxes.map(b => b.x));
+          let minY = Math.min(...uniqueBoxes.map(b => b.y));
+          let maxX = Math.max(...uniqueBoxes.map(b => b.x + b.w));
+          let maxY = Math.max(...uniqueBoxes.map(b => b.y + b.h));
+
+          const padX = (maxX - minX) * 0.02;
+          const padY = (maxY - minY) * 0.02;
+
+          corners = [
+            { x: Math.max(0, minX - padX), y: Math.max(0, minY - padY) },
+            { x: Math.min(cropCanvas.width, maxX + padX), y: Math.max(0, minY - padY) },
+            { x: Math.min(cropCanvas.width, maxX + padX), y: Math.min(cropCanvas.height, maxY + padY) },
+            { x: Math.max(0, minX - padX), y: Math.min(cropCanvas.height, maxY + padY) }
+          ];
+
+          gridCols = detectedCols;
+          gridRows = detectedRows;
+          document.getElementById('colsInput').value = detectedCols;
+          document.getElementById('rowsInput').value = detectedRows;
+          currentPresetName = `${gridCols}×${gridRows} (${gridCols * gridRows} Frames)`;
+          updateGridSummary();
+
+          document.getElementById('snapStatusMsg').innerText = `✨ Auto-detected ${uniqueBoxes.length} panels (${detectedCols}×${detectedRows}) & snapped grid!`;
+          return true;
+        }
+      } catch (err) {
+        console.warn("Detection note:", err);
+      } finally {
+        src.delete(); gray.delete(); thresh.delete(); contours.delete(); hierarchy.delete();
+      }
+
+      // Default fallback snap
+      const w = cropCanvas.width;
+      const h = cropCanvas.height;
+      corners = [
+        { x: w * 0.08, y: h * 0.08 },
+        { x: w * 0.92, y: h * 0.08 },
+        { x: w * 0.92, y: h * 0.92 },
+        { x: w * 0.08, y: h * 0.92 }
+      ];
+      document.getElementById('snapStatusMsg').innerText = `🎯 Default grid aligned. Drag circles to fine-tune.`;
+      return false;
+    }
+
+    function clusterCoordinates(arr, threshold) {
+      if (arr.length === 0) return [];
+      let clusters = [[arr[0]]];
+      for (let i = 1; i < arr.length; i++) {
+        let lastCluster = clusters[clusters.length - 1];
+        let avg = lastCluster.reduce((a,b)=>a+b, 0) / lastCluster.length;
+        if (Math.abs(arr[i] - avg) < threshold) {
+          lastCluster.push(arr[i]);
+        } else {
+          clusters.push([arr[i]]);
+        }
+      }
+      return clusters;
+    }
+
+    function triggerAutoDetect() {
+      autoDetectAndSnapGrid();
+      drawAdjuster();
+    }
+
     function setupAdjuster() {
       clearInterval(playInterval);
       document.getElementById('uploadCard').style.display = 'none';
@@ -419,14 +558,8 @@
       cropCanvas.width = loadedImage.width;
       cropCanvas.height = loadedImage.height;
 
-      const w = loadedImage.width;
-      const h = loadedImage.height;
-      corners = [
-        { x: w * 0.10, y: h * 0.10 },
-        { x: w * 0.90, y: h * 0.10 },
-        { x: w * 0.90, y: h * 0.90 },
-        { x: w * 0.10, y: h * 0.90 }
-      ];
+      // Run Auto-Detect & Snap
+      autoDetectAndSnapGrid();
 
       document.getElementById('confirmCropBtn').innerText = isAppending ? '➕ Append Page Frames' : '✨ Generate Stop Motion';
       drawAdjuster();
@@ -447,7 +580,7 @@
       cropCtx.closePath();
       cropCtx.stroke();
 
-      // Dynamic sub-boxes
+      // Sub-boxes
       cropCtx.strokeStyle = 'rgba(255, 235, 59, 0.9)';
       cropCtx.lineWidth = Math.max(2, cropCanvas.width * 0.003);
 
@@ -494,7 +627,7 @@
       };
     }
 
-    // Touch & Mouse Dragging
+    // Pointer Interaction
     function getCanvasCoords(e) {
       const rect = cropCanvas.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -535,7 +668,7 @@
     window.addEventListener('touchmove', onPointerMove, { passive: false });
     window.addEventListener('touchend', onPointerUp);
 
-    // Dewarp & Extract to (outWidth x outHeight)
+    // Dewarp & Extract
     function cropAndAnimate() {
       updateDimensions();
       const newPageFrames = [];
@@ -580,7 +713,6 @@
       document.getElementById('adjustCard').style.display = 'none';
       document.getElementById('playerCard').style.display = 'block';
 
-      // Update Player canvas dimensions
       const animCanvas = document.getElementById('animationCanvas');
       animCanvas.width = outWidth;
       animCanvas.height = outHeight;
@@ -783,7 +915,7 @@
 
     async function exportVideoFile() {
       const status = document.getElementById('exportStatus');
-      status.innerText = 'Rendering widescreen video...';
+      status.innerText = 'Rendering video...';
       const vidData = await createVideoBlob(3);
 
       if (!vidData) {
