@@ -121,20 +121,17 @@
       margin-bottom: 8px;
     }
 
-    .gap-controls {
+    .legend-box {
       display: flex;
-      justify-content: space-around;
-      background: #f0f4f8;
-      padding: 8px 12px;
-      border-radius: 10px;
-      margin-top: 8px;
+      justify-content: center;
+      gap: 16px;
       font-size: 0.82rem;
       font-weight: bold;
+      margin-bottom: 6px;
     }
-    .gap-controls input[type="range"] {
-      width: 100px;
-      margin-top: 4px;
-    }
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+    .dot-red { width: 12px; height: 12px; border-radius: 50%; background: #ff5722; border: 1px solid #fff; display: inline-block; }
+    .dot-green { width: 12px; height: 12px; border-radius: 50%; background: #00e676; border: 1px solid #fff; display: inline-block; }
 
     #cropCanvas {
       width: 100%;
@@ -222,7 +219,7 @@
 <body>
 
   <h1>🎬 Smart Stop Motion Studio</h1>
-  <p>True 3D projective perspective with automatic snap!</p>
+  <p>Drag corner & middle dots to lock onto every frame perfectly!</p>
 
   <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
   <input type="file" id="appendCameraInput" accept="image/*" capture="environment" style="display:none;">
@@ -278,28 +275,16 @@
     </div>
   </div>
 
-  <!-- Step 2: Interactive Interconnected Perspective Grid -->
+  <!-- Step 2: Interactive Grid with Middle Divider Control Points -->
   <div class="card" id="adjustCard" style="display:none;">
-    <div class="status-banner" id="snapStatusMsg" style="background:#e8f5e9; color:#2e7d32;">✨ Auto-snapping perspective grid...</div>
+    <div class="status-banner" id="snapStatusMsg" style="background:#e8f5e9; color:#2e7d32;">✨ Grid locked! Drag red/green dots to tweak.</div>
     
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-      <span style="font-size:0.85rem; font-weight:bold;">🎯 Drag red dots to Box Corners</span>
-      <button class="btn btn-purple btn-sm" onclick="triggerAutoDetect()">⚡ Re-Snap</button>
+    <div class="legend-box">
+      <span class="legend-item"><span class="dot-red"></span> Red = Corners</span>
+      <span class="legend-item"><span class="dot-green"></span> Green = Row Dividers</span>
     </div>
 
     <canvas id="cropCanvas"></canvas>
-
-    <!-- Real-time Spacing Fine-Tuning Sliders -->
-    <div class="gap-controls">
-      <div>
-        <label>↕️ Row Gap: <span id="gapYVal">8</span>mm</label><br>
-        <input type="range" id="gapYSlider" min="0" max="25" value="8" step="1" oninput="onGapSliderChange()">
-      </div>
-      <div>
-        <label>↔️ Col Gap: <span id="gapXVal">8</span>mm</label><br>
-        <input type="range" id="gapXSlider" min="0" max="25" value="8" step="1" oninput="onGapSliderChange()">
-      </div>
-    </div>
 
     <div style="margin-top: 10px;">
       <button class="btn btn-blue" id="confirmCropBtn" onclick="cropAndAnimate()">✨ Generate Stop Motion</button>
@@ -336,7 +321,6 @@
     <div id="exportStatus" style="font-size: 0.85rem; margin-top: 8px; color: #555;"></div>
   </div>
 
-  <!-- Clean Printable Worksheet -->
   <div id="printableGrid">
     <div class="print-container" id="printBoxesContainer"></div>
   </div>
@@ -350,16 +334,18 @@
 
     let boxWidthMm = 76;
     let boxHeightMm = 76;
-    let gapXMm = 8;
-    let gapYMm = 8;
 
     let outWidth = 500;
     let outHeight = 500;
 
     let loadedImage = null;
     let isAppending = false;
-    let corners = [];
-    let activeCorner = null;
+    
+    // Grid Control Points
+    let corners = [];    // 4 Corner points: [TL(0), TR(1), BR(2), BL(3)]
+    let rowDividers = []; // Array of { L: {x,y}, R: {x,y} } for middle horizontal lines
+    let activeHandle = null; // Currently dragged dot
+
     let allFrames = [];
     let currentFrameIdx = 0;
     let isPlaying = false;
@@ -371,7 +357,7 @@
 
     function onOpenCvReady() {
       openCvLoaded = true;
-      console.log('OpenCV Optical Engine Ready');
+      console.log('OpenCV Engine Loaded');
     }
 
     function toggleSettings() {
@@ -387,14 +373,8 @@
         outHeight = 500;
         outWidth = Math.round(500 * aspectRatio);
       }
-
-      if (aspectRatio === 1.85) {
-        boxWidthMm = 80;
-        boxHeightMm = 43;
-      } else {
-        boxWidthMm = 76;
-        boxHeightMm = 76;
-      }
+      boxWidthMm = aspectRatio === 1.85 ? 80 : 76;
+      boxHeightMm = aspectRatio === 1.85 ? 43 : 76;
     }
 
     function setPreset(cols, rows, ratio, name) {
@@ -407,6 +387,7 @@
       document.getElementById('ratioSelect').value = String(ratio);
       updateDimensions();
       updateGridSummary();
+      initDividers();
       if (loadedImage) drawAdjuster();
     }
 
@@ -417,20 +398,13 @@
       currentPresetName = `${gridCols}×${gridRows} (${gridCols * gridRows} Frames)`;
       updateDimensions();
       updateGridSummary();
+      initDividers();
       if (loadedImage) drawAdjuster();
     }
 
     function updateGridSummary() {
       const ratioName = aspectRatio === 1.85 ? '1:1.85 Cinema' : (aspectRatio === 1.0 ? '1:1 Square' : `${aspectRatio}:1`);
       document.getElementById('gridSummary').innerText = `${currentPresetName} • ${ratioName}`;
-    }
-
-    function onGapSliderChange() {
-      gapYMm = parseInt(document.getElementById('gapYSlider').value) || 8;
-      gapXMm = parseInt(document.getElementById('gapXSlider').value) || 8;
-      document.getElementById('gapYVal').innerText = gapYMm;
-      document.getElementById('gapXVal').innerText = gapXMm;
-      drawAdjuster();
     }
 
     function prepareAndPrint() {
@@ -472,22 +446,32 @@
       reader.readAsDataURL(file);
     }
 
-    // --- TRUE 3D OPTICAL PERSPECTIVE AUTO-SNAP ---
+    // Initialize/Reset Middle Row Dividers along Left and Right Rails
+    function initDividers() {
+      rowDividers = [];
+      if (corners.length < 4 || gridRows <= 1) return;
+
+      const [tl, tr, br, bl] = corners;
+      for (let r = 1; r < gridRows; r++) {
+        const t = r / gridRows;
+        rowDividers.push({
+          L: { x: (1 - t) * tl.x + t * bl.x, y: (1 - t) * tl.y + t * bl.y },
+          R: { x: (1 - t) * tr.x + t * br.x, y: (1 - t) * tr.y + t * br.y }
+        });
+      }
+    }
+
+    // --- SMART PERSPECTIVE DETECTOR & INITIALIZER ---
     function runSmartAutoDetect() {
       const autoEnabled = document.getElementById('autoDetectToggle').checked;
       const banner = document.getElementById('snapStatusMsg');
 
-      if (!autoEnabled) {
+      if (!autoEnabled || !openCvLoaded || !loadedImage) {
         setManualDefaultCorners();
-        banner.innerText = '✋ Manual mode. Drag red dots to fit your boxes.';
+        initDividers();
+        banner.innerText = '✋ Drag red/green dots to fit your boxes.';
         banner.style.background = '#e3f2fd';
         banner.style.color = '#1565c0';
-        return false;
-      }
-
-      if (!openCvLoaded || !loadedImage) {
-        setManualDefaultCorners();
-        banner.innerText = '⏳ Drag red dots to fit your boxes.';
         return false;
       }
 
@@ -525,8 +509,6 @@
 
         let allPoints = [];
         const totalArea = detW * detH;
-        
-        // Strict box filters to ignore header text completely
         const minBoxW = detW * 0.15; 
         const minBoxH = detH * 0.10; 
         const minArea = totalArea * 0.018;
@@ -544,7 +526,6 @@
           if (approx.rows === 4 && cv.isContourConvex(approx)) {
             let rect = cv.boundingRect(approx);
             let asp = rect.width / rect.height;
-            // Reject any header text or small noise
             if (rect.width >= minBoxW && rect.height >= minBoxH && asp >= 0.65 && asp <= 1.6) {
               for (let j = 0; j < 4; j++) {
                 allPoints.push({
@@ -558,7 +539,6 @@
         }
 
         if (allPoints.length >= 8) {
-          // 4 True Optical Extrema (TL, TR, BR, BL)
           let tl = allPoints.reduce((min, p) => (p.x + p.y < min.x + min.y ? p : min), allPoints[0]);
           let br = allPoints.reduce((max, p) => (p.x + p.y > max.x + max.y ? p : max), allPoints[0]);
           let tr = allPoints.reduce((max, p) => (p.x - p.y > max.x - max.y ? p : max), allPoints[0]);
@@ -571,12 +551,12 @@
             { x: bl.x, y: bl.y }
           ];
 
-          banner.innerText = `✅ 3D Perspective locked! Drag red dots or sliders to tweak.`;
+          initDividers();
+          banner.innerText = `✅ Auto-snapped! Drag red corners or green dividers to fine-tune.`;
           banner.style.background = '#e8f5e9';
           banner.style.color = '#2e7d32';
           return true;
         }
-
       } catch (err) {
         console.warn("Detection error:", err);
       } finally {
@@ -584,7 +564,8 @@
       }
 
       setManualDefaultCorners();
-      banner.innerText = '🎯 Drag the 4 red dots onto the outer corners of Box 1, 2, 5 & 6.';
+      initDividers();
+      banner.innerText = '🎯 Drag the red & green dots to line up with the boxes.';
       banner.style.background = '#fff3e0';
       banner.style.color = '#e65100';
       return false;
@@ -602,11 +583,6 @@
       ];
     }
 
-    function triggerAutoDetect() {
-      runSmartAutoDetect();
-      drawAdjuster();
-    }
-
     function setupAdjuster() {
       clearInterval(playInterval);
       document.getElementById('uploadCard').style.display = 'none';
@@ -622,53 +598,44 @@
       drawAdjuster();
     }
 
-    // --- EXACT PHYSICAL GAP RATIOS & HOMOGRAPHY MAPPING ---
-    function getCellBounds(c, r) {
-      const totalW = (gridCols * boxWidthMm) + ((gridCols - 1) * gapXMm);
-      const totalH = (gridRows * boxHeightMm) + ((gridRows - 1) * gapYMm);
+    // --- PIECEWISE ROW-BY-ROW PERSPECTIVE INTERPOLATION ---
+    function interpRow(r, u, v) {
+      const TL_r = (r === 0) ? corners[0] : rowDividers[r - 1].L;
+      const TR_r = (r === 0) ? corners[1] : rowDividers[r - 1].R;
+      const BR_r = (r === gridRows - 1) ? corners[2] : rowDividers[r].R;
+      const BL_r = (r === gridRows - 1) ? corners[3] : rowDividers[r].L;
 
-      const u0 = (c * (boxWidthMm + gapXMm)) / totalW;
-      const u1 = (c * (boxWidthMm + gapXMm) + boxWidthMm) / totalW;
-
-      const v0 = (r * (boxHeightMm + gapYMm)) / totalH;
-      const v1 = (r * (boxHeightMm + gapYMm) + boxHeightMm) / totalH;
-
-      return { u0, u1, v0, v1 };
+      return {
+        x: (1 - u) * (1 - v) * TL_r.x + u * (1 - v) * TR_r.x + u * v * BR_r.x + (1 - u) * v * BL_r.x,
+        y: (1 - u) * (1 - v) * TL_r.y + u * (1 - v) * TR_r.y + u * v * BR_r.y + (1 - u) * v * BL_r.y
+      };
     }
 
-    // True 3x3 Optical Perspective Homography Projector
-    function projectHomographyPoint(u, v) {
-      if (openCvLoaded) {
-        try {
-          let src = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, 1, 0, 1, 1, 0, 1]);
-          let dst = cv.matFromArray(4, 1, cv.CV_32FC2, [
-            corners[0].x, corners[0].y,
-            corners[1].x, corners[1].y,
-            corners[2].x, corners[2].y,
-            corners[3].x, corners[3].y
-          ]);
-          let H = cv.getPerspectiveTransform(src, dst);
-          let h = H.data64F;
-          let x = h[0]*u + h[1]*v + h[2];
-          let y = h[3]*u + h[4]*v + h[5];
-          let w = h[6]*u + h[7]*v + h[8];
-          src.delete(); dst.delete(); H.delete();
-          return { x: x / w, y: y / w };
-        } catch(e) {}
-      }
-      // Bilinear fallback
-      const [tl, tr, br, bl] = corners;
-      return {
-        x: (1-u)*(1-v)*tl.x + u*(1-v)*tr.x + u*v*br.x + (1-u)*v*bl.x,
-        y: (1-u)*(1-v)*tl.y + u*(1-v)*tr.y + u*v*br.y + (1-u)*v*bl.y
-      };
+    // Calculate Box Corners in screen space for a specific cell (c, r)
+    function getBoxCorners(c, r) {
+      const gapXRatio = 0.105;
+      const totalW = gridCols + (gridCols - 1) * gapXRatio;
+
+      const u0 = (c * (1.0 + gapXRatio)) / totalW;
+      const u1 = (c * (1.0 + gapXRatio) + 1.0) / totalW;
+
+      // Small vertical inset (3%) so yellow outline hugs the black line
+      const v0 = 0.03;
+      const v1 = 0.97;
+
+      return [
+        interpRow(r, u0, v0),
+        interpRow(r, u1, v0),
+        interpRow(r, u1, v1),
+        interpRow(r, u0, v1)
+      ];
     }
 
     function drawAdjuster() {
       cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
       cropCtx.drawImage(loadedImage, 0, 0);
 
-      // 1. Blue Outer Perspective Quad
+      // 1. Draw outer connecting blue quad
       cropCtx.strokeStyle = 'rgba(33, 150, 243, 0.7)';
       cropCtx.lineWidth = Math.max(3, cropCanvas.width * 0.004);
       cropCtx.beginPath();
@@ -679,18 +646,23 @@
       cropCtx.closePath();
       cropCtx.stroke();
 
-      // 2. Yellow Sub-Boxes with True 3D Optical Homography
+      // 2. Draw horizontal divider lines connecting green dots
+      cropCtx.strokeStyle = 'rgba(0, 230, 118, 0.6)';
+      cropCtx.lineWidth = Math.max(2, cropCanvas.width * 0.003);
+      rowDividers.forEach(div => {
+        cropCtx.beginPath();
+        cropCtx.moveTo(div.L.x, div.L.y);
+        cropCtx.lineTo(div.R.x, div.R.y);
+        cropCtx.stroke();
+      });
+
+      // 3. Draw perspective-locked yellow boxes
       cropCtx.strokeStyle = '#ffeb3b';
       cropCtx.lineWidth = Math.max(3, cropCanvas.width * 0.0045);
 
       for (let r = 0; r < gridRows; r++) {
         for (let c = 0; c < gridCols; c++) {
-          const { u0, u1, v0, v1 } = getCellBounds(c, r);
-
-          const p0 = projectHomographyPoint(u0, v0);
-          const p1 = projectHomographyPoint(u1, v0);
-          const p2 = projectHomographyPoint(u1, v1);
-          const p3 = projectHomographyPoint(u0, v1);
+          const [p0, p1, p2, p3] = getBoxCorners(c, r);
 
           cropCtx.beginPath();
           cropCtx.moveTo(p0.x, p0.y);
@@ -702,12 +674,26 @@
         }
       }
 
-      // 3. Red Corner Handles
-      const handleRadius = Math.max(18, cropCanvas.width * 0.028);
+      // 4. Draw Green Middle Divider Handles
+      const greenRadius = Math.max(16, cropCanvas.width * 0.024);
+      rowDividers.forEach(div => {
+        [div.L, div.R].forEach(pt => {
+          cropCtx.fillStyle = '#00e676';
+          cropCtx.beginPath();
+          cropCtx.arc(pt.x, pt.y, greenRadius, 0, Math.PI * 2);
+          cropCtx.fill();
+          cropCtx.strokeStyle = '#ffffff';
+          cropCtx.lineWidth = 2.5;
+          cropCtx.stroke();
+        });
+      });
+
+      // 5. Draw Red Corner Handles
+      const redRadius = Math.max(18, cropCanvas.width * 0.028);
       corners.forEach(pt => {
         cropCtx.fillStyle = '#ff5722';
         cropCtx.beginPath();
-        cropCtx.arc(pt.x, pt.y, handleRadius, 0, Math.PI * 2);
+        cropCtx.arc(pt.x, pt.y, redRadius, 0, Math.PI * 2);
         cropCtx.fill();
         cropCtx.strokeStyle = '#ffffff';
         cropCtx.lineWidth = 3;
@@ -715,7 +701,7 @@
       });
     }
 
-    // Touch & Pointer Dragging
+    // Touch & Drag Handling for Corners + Middle Dividers
     function getCanvasCoords(e) {
       const rect = cropCanvas.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -729,316 +715,70 @@
     function onPointerDown(e) {
       const pos = getCanvasCoords(e);
       const touchDist = Math.max(38, cropCanvas.width * 0.07);
-      activeCorner = null;
+      activeHandle = null;
+
+      // 1. Check if user touched a Red Corner Dot
       corners.forEach((pt, idx) => {
-        if (Math.hypot(pt.x - pos.x, pt.y - pos.y) < touchDist) activeCorner = idx;
+        if (Math.hypot(pt.x - pos.x, pt.y - pos.y) < touchDist) {
+          activeHandle = { type: 'corner', idx: idx };
+        }
       });
-      if (activeCorner !== null) e.preventDefault();
+
+      // 2. Check if user touched a Green Middle Divider Dot
+      if (!activeHandle) {
+        rowDividers.forEach((div, rIdx) => {
+          if (Math.hypot(div.L.x - pos.x, div.L.y - pos.y) < touchDist) {
+            activeHandle = { type: 'divider', rIdx: rIdx, side: 'L' };
+          } else if (Math.hypot(div.R.x - pos.x, div.R.y - pos.y) < touchDist) {
+            activeHandle = { type: 'divider', rIdx: rIdx, side: 'R' };
+          }
+        });
+      }
+
+      if (activeHandle !== null) e.preventDefault();
     }
 
     function onPointerMove(e) {
-      if (activeCorner === null) return;
+      if (!activeHandle) return;
       e.preventDefault();
       const pos = getCanvasCoords(e);
-      corners[activeCorner] = {
-        x: Math.max(0, Math.min(cropCanvas.width, pos.x)),
-        y: Math.max(0, Math.min(cropCanvas.height, pos.y))
-      };
+      const clampedX = Math.max(0, Math.min(cropCanvas.width, pos.x));
+      const clampedY = Math.max(0, Math.min(cropCanvas.height, pos.y));
+
+      if (activeHandle.type === 'corner') {
+        const oldCorner = { ...corners[activeHandle.idx] };
+        corners[activeHandle.idx] = { x: clampedX, y: clampedY };
+        
+        // Shift middle divider handles along with corner movement
+        const deltaX = clampedX - oldCorner.x;
+        const deltaY = clampedY - oldCorner.y;
+        rowDividers.forEach((div, rIdx) => {
+          const t = (rIdx + 1) / gridRows;
+          const weight = (activeHandle.idx === 0 || activeHandle.idx === 1) ? (1 - t) : t;
+          if (activeHandle.idx === 0 || activeHandle.idx === 3) {
+            div.L.x += deltaX * weight;
+            div.L.y += deltaY * weight;
+          } else {
+            div.R.x += deltaX * weight;
+            div.R.y += deltaY * weight;
+          }
+        });
+      } else if (activeHandle.type === 'divider') {
+        const div = rowDividers[activeHandle.rIdx];
+        if (activeHandle.side === 'L') {
+          div.L = { x: clampedX, y: clampedY };
+        } else {
+          div.R = { x: clampedX, y: clampedY };
+        }
+      }
+
       drawAdjuster();
     }
 
-    function onPointerUp() { activeCorner = null; }
+    function onPointerUp() { activeHandle = null; }
 
     cropCanvas.addEventListener('mousedown', onPointerDown);
     window.addEventListener('mousemove', onPointerMove);
     window.addEventListener('mouseup', onPointerUp);
     cropCanvas.addEventListener('touchstart', onPointerDown, { passive: false });
-    window.addEventListener('touchmove', onPointerMove, { passive: false });
-    window.addEventListener('touchend', onPointerUp);
-
-    // Dewarp & Extract
-    function cropAndAnimate() {
-      updateDimensions();
-      const newPageFrames = [];
-      const srcMat = cv.imread(cropCanvas);
-
-      for (let r = 0; r < gridRows; r++) {
-        for (let c = 0; c < gridCols; c++) {
-          const { u0, u1, v0, v1 } = getCellBounds(c, r);
-
-          const p0 = projectHomographyPoint(u0, v0);
-          const p1 = projectHomographyPoint(u1, v0);
-          const p2 = projectHomographyPoint(u1, v1);
-          const p3 = projectHomographyPoint(u0, v1);
-
-          let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [p0.x, p0.y, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y]);
-          let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, outWidth, 0, outWidth, outHeight, 0, outHeight]);
-
-          let M = cv.getPerspectiveTransform(srcTri, dstTri);
-          let dst = new cv.Mat();
-          cv.warpPerspective(srcMat, dst, M, new cv.Size(outWidth, outHeight), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
-
-          let fCanvas = document.createElement('canvas');
-          fCanvas.width = outWidth;
-          fCanvas.height = outHeight;
-          cv.imshow(fCanvas, dst);
-          newPageFrames.push(fCanvas);
-
-          srcTri.delete(); dstTri.delete(); M.delete(); dst.delete();
-        }
-      }
-      srcMat.delete();
-
-      if (isAppending) {
-        allFrames = allFrames.concat(newPageFrames);
-      } else {
-        allFrames = newPageFrames;
-      }
-
-      document.getElementById('adjustCard').style.display = 'none';
-      document.getElementById('playerCard').style.display = 'block';
-
-      const animCanvas = document.getElementById('animationCanvas');
-      animCanvas.width = outWidth;
-      animCanvas.height = outHeight;
-
-      refreshFrameStrip();
-      startPlayback();
-    }
-
-    function cancelAdjust() {
-      document.getElementById('adjustCard').style.display = 'none';
-      if (allFrames.length > 0) {
-        document.getElementById('playerCard').style.display = 'block';
-        startPlayback();
-      } else {
-        document.getElementById('uploadCard').style.display = 'block';
-      }
-    }
-
-    function refreshFrameStrip() {
-      document.getElementById('totalFramesCount').innerText = allFrames.length;
-      const strip = document.getElementById('frameStrip');
-      strip.innerHTML = '';
-      allFrames.forEach((fCanvas, idx) => {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'frame-wrapper';
-
-        const imgThumb = document.createElement('img');
-        imgThumb.src = fCanvas.toDataURL('image/jpeg', 0.9);
-        imgThumb.className = 'frame-thumb';
-
-        const del = document.createElement('div');
-        del.className = 'frame-delete';
-        del.innerHTML = '✖';
-        del.onclick = () => deleteFrame(idx);
-
-        wrapper.appendChild(imgThumb);
-        wrapper.appendChild(del);
-        strip.appendChild(wrapper);
-      });
-    }
-
-    function deleteFrame(idx) {
-      if (allFrames.length <= 1) {
-        alert("You need at least 1 frame!");
-        return;
-      }
-      allFrames.splice(idx, 1);
-      refreshFrameStrip();
-      if (currentFrameIdx >= allFrames.length) currentFrameIdx = 0;
-    }
-
-    function resetAll() {
-      clearInterval(playInterval);
-      allFrames = [];
-      document.getElementById('playerCard').style.display = 'none';
-      document.getElementById('uploadCard').style.display = 'block';
-      document.getElementById('cameraInput').value = '';
-      document.getElementById('appendCameraInput').value = '';
-      document.getElementById('exportStatus').innerHTML = '';
-    }
-
-    function startPlayback() {
-      clearInterval(playInterval);
-      isPlaying = true;
-      document.getElementById('playBtn').innerText = '⏸️ Pause';
-      
-      const animCanvas = document.getElementById('animationCanvas');
-      const ctx = animCanvas.getContext('2d');
-
-      playInterval = setInterval(() => {
-        if (allFrames.length === 0) return;
-        ctx.clearRect(0, 0, outWidth, outHeight);
-        ctx.drawImage(allFrames[currentFrameIdx], 0, 0, outWidth, outHeight);
-        currentFrameIdx = (currentFrameIdx + 1) % allFrames.length;
-      }, 1000 / fps);
-    }
-
-    function togglePlay() {
-      if (isPlaying) {
-        clearInterval(playInterval);
-        isPlaying = false;
-        document.getElementById('playBtn').innerText = '▶️ Play';
-      } else {
-        startPlayback();
-      }
-    }
-
-    function updateFps(val) {
-      fps = parseInt(val);
-      document.getElementById('fpsLabel').innerText = fps;
-      if (isPlaying) startPlayback();
-    }
-
-    // Export JPGs in ZIP
-    async function exportJpgZip() {
-      const status = document.getElementById('exportStatus');
-      status.innerText = 'Packaging JPG frames into ZIP...';
-
-      const zip = new JSZip();
-      const folder = zip.folder("stopmotion_frames");
-
-      allFrames.forEach((canvas, idx) => {
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
-        const base64Data = dataUrl.replace(/^data:image\/jpeg;base64,/, "");
-        const num = String(idx + 1).padStart(2, '0');
-        folder.file(`frame_${num}.jpg`, base64Data, {base64: true});
-      });
-
-      const zipBlob = await zip.generateAsync({type: "blob"});
-      const zipFile = new File([zipBlob], "stopmotion_frames.zip", { type: "application/zip" });
-
-      if (navigator.canShare && navigator.canShare({ files: [zipFile] })) {
-        try {
-          await navigator.share({
-            files: [zipFile],
-            title: 'Stop Motion Frames',
-            text: 'Here are my stop motion JPG frames!'
-          });
-          status.innerText = 'ZIP shared successfully!';
-          return;
-        } catch(err) { console.log('Share dismissed', err); }
-      }
-
-      const url = URL.createObjectURL(zipBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = "stopmotion_frames.zip";
-      a.className = "btn btn-purple";
-      a.innerText = "⬇️ Tap to Download .ZIP (JPGs)";
-      status.innerHTML = '';
-      status.appendChild(a);
-    }
-
-    // Video Recording
-    async function createVideoBlob(loopCount = 3) {
-      const recCanvas = document.createElement('canvas');
-      recCanvas.width = outWidth;
-      recCanvas.height = outHeight;
-      const recCtx = recCanvas.getContext('2d');
-      const stream = recCanvas.captureStream(fps);
-
-      let mimeType = 'video/mp4';
-      if (typeof MediaRecorder === 'undefined') return null;
-      if (!MediaRecorder.isTypeSupported('video/mp4')) {
-        if (MediaRecorder.isTypeSupported('video/webm')) mimeType = 'video/webm';
-        else mimeType = '';
-      }
-
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
-      const chunks = [];
-      recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-
-      return new Promise((resolve) => {
-        recorder.onstop = () => {
-          const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-          const blob = new Blob(chunks, { type: mimeType || 'video/mp4' });
-          resolve({ blob, ext, mimeType: mimeType || 'video/mp4' });
-        };
-
-        recorder.start();
-        let loop = 0;
-        let idx = 0;
-        const interval = setInterval(() => {
-          recCtx.clearRect(0, 0, outWidth, outHeight);
-          recCtx.drawImage(allFrames[idx], 0, 0, outWidth, outHeight);
-          idx++;
-          if (idx >= allFrames.length) {
-            idx = 0;
-            loop++;
-            if (loop >= loopCount) {
-              clearInterval(interval);
-              setTimeout(() => recorder.stop(), 200);
-            }
-          }
-        }, 1000 / fps);
-      });
-    }
-
-    async function shareVideoOrGif() {
-      const status = document.getElementById('exportStatus');
-      status.innerText = 'Preparing video for WhatsApp...';
-
-      const vidData = await createVideoBlob(3);
-      if (vidData) {
-        const file = new File([vidData.blob], `animation.${vidData.ext}`, { type: vidData.mimeType });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          try {
-            await navigator.share({
-              files: [file],
-              title: 'My Stop Motion',
-              text: 'Check out my stop motion animation!'
-            });
-            status.innerText = 'Shared successfully!';
-            return;
-          } catch(err) { console.log('Share dismissed', err); }
-        }
-      }
-      status.innerHTML = `<a href="https://api.whatsapp.com/send?text=Check%20my%20stop%20motion!" target="_blank" class="btn btn-wa">Open WhatsApp Web</a><br><small>Tip: Save the video first, then send via chat.</small>`;
-    }
-
-    async function exportVideoFile() {
-      const status = document.getElementById('exportStatus');
-      status.innerText = 'Rendering video...';
-      const vidData = await createVideoBlob(3);
-
-      if (!vidData) {
-        status.innerText = 'Video not supported on this browser. Use Save GIF!';
-        return;
-      }
-
-      const url = URL.createObjectURL(vidData.blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `stopmotion.${vidData.ext}`;
-      a.className = 'btn btn-blue';
-      a.innerText = `⬇️ Tap to Download Video .${vidData.ext}`;
-      status.innerHTML = '';
-      status.appendChild(a);
-    }
-
-    function exportGifFile() {
-      const status = document.getElementById('exportStatus');
-      status.innerText = 'Rendering GIF...';
-      const imagesData = allFrames.map(f => f.toDataURL('image/jpeg', 0.9));
-
-      gifshot.createGIF({
-        images: imagesData,
-        interval: 1 / fps,
-        gifWidth: outWidth,
-        gifHeight: outHeight,
-        numWorkers: 2
-      }, function(obj) {
-        if (!obj.error) {
-          status.innerHTML = `<a href="${obj.image}" download="stopmotion.gif" class="btn btn-green">⬇️ Tap to Download GIF</a>`;
-        } else {
-          status.innerText = 'Could not generate GIF.';
-        }
-      });
-    }
-
-    updateDimensions();
-  </script>
-</body>
-</html>
+    window.addEventListener('touc
