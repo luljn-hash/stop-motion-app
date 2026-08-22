@@ -209,7 +209,7 @@
 <body>
 
   <h1>🎬 Smart Stop Motion Studio</h1>
-  <p>Auto-detects squares, snaps 100% to boxes, and exports animations!</p>
+  <p>Auto-snaps interconnected perspective grid & exports animations!</p>
 
   <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
   <input type="file" id="appendCameraInput" accept="image/*" capture="environment" style="display:none;">
@@ -218,7 +218,7 @@
   <div class="card" id="uploadCard">
     <label class="toggle-box">
       <input type="checkbox" id="autoDetectToggle" checked>
-      <span>✨ Auto-Detect & Snap Directly to Squares</span>
+      <span>✨ Auto-Detect & Snap Corner Dots</span>
     </label>
 
     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -265,12 +265,12 @@
     </div>
   </div>
 
-  <!-- Step 2: Interactive Alignment with 1:1 Box Snapping -->
+  <!-- Step 2: Interactive Interconnected Perspective Grid -->
   <div class="card" id="adjustCard" style="display:none;">
-    <div class="status-banner" id="snapStatusMsg" style="background:#e8f5e9; color:#2e7d32;">✨ Detecting boxes...</div>
+    <div class="status-banner" id="snapStatusMsg" style="background:#e8f5e9; color:#2e7d32;">✨ Auto-snapping grid...</div>
     
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-      <span style="font-size:0.85rem; font-weight:bold;">🎯 Boxes automatically snapped</span>
+      <span style="font-size:0.85rem; font-weight:bold;">🎯 Drag red dots to adjust perspective</span>
       <button class="btn btn-purple btn-sm" onclick="triggerAutoDetect()">⚡ Re-Snap</button>
     </div>
 
@@ -329,7 +329,6 @@
     let loadedImage = null;
     let isAppending = false;
     let corners = [];
-    let detectedBoxes = []; // Exact detected box coordinates
     let activeCorner = null;
     let allFrames = [];
     let currentFrameIdx = 0;
@@ -436,15 +435,14 @@
       reader.readAsDataURL(file);
     }
 
-    // --- DIRECT 1:1 BOX DETECTION & PIXEL-PERFECT SNAPPING ---
+    // --- AUTO-SNAP THE 4 CORNER DOTS TO THE BOX GRID ---
     function runSmartAutoDetect() {
       const autoEnabled = document.getElementById('autoDetectToggle').checked;
       const banner = document.getElementById('snapStatusMsg');
-      detectedBoxes = [];
 
       if (!autoEnabled) {
         setManualDefaultCorners();
-        banner.innerText = '✋ Manual mode. Drag red circles to fit.';
+        banner.innerText = '✋ Manual mode. Drag the 4 red dots to the corners of your boxes.';
         banner.style.background = '#e3f2fd';
         banner.style.color = '#1565c0';
         return false;
@@ -452,7 +450,7 @@
 
       if (!openCvLoaded || !loadedImage) {
         setManualDefaultCorners();
-        banner.innerText = '⏳ Detector loading... Drag red circles to fit.';
+        banner.innerText = '⏳ Drag red dots to fit your boxes.';
         return false;
       }
 
@@ -480,8 +478,6 @@
       try {
         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
         cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-
-        // Otsu thresholding cleanly separates dark black lines from white paper
         cv.threshold(blurred, thresh, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
 
         let kernel = cv.Mat.ones(3, 3, cv.CV_8U);
@@ -492,8 +488,8 @@
 
         let validBoxes = [];
         const totalArea = detW * detH;
-        const minArea = totalArea * 0.02; // At least 2% area
-        const maxArea = totalArea * 0.35; // At most 35% area (ignores full page & titles)
+        const minArea = totalArea * 0.02;
+        const maxArea = totalArea * 0.35;
 
         for (let i = 0; i < contours.size(); ++i) {
           let cnt = contours.get(i);
@@ -507,7 +503,6 @@
           if (approx.rows === 4 && cv.isContourConvex(approx)) {
             let rect = cv.boundingRect(approx);
             let asp = rect.width / rect.height;
-            // Match square or 1.85 rectangle
             if (asp >= 0.70 && asp <= 2.2) {
               validBoxes.push({
                 x: rect.x / scale,
@@ -523,7 +518,6 @@
           approx.delete();
         }
 
-        // Deduplicate overlapping nested contours
         let deduped = [];
         validBoxes.sort((a,b) => b.area - a.area);
         validBoxes.forEach(b => {
@@ -532,7 +526,7 @@
         });
 
         if (deduped.length >= 2) {
-          // Sort into rows top-to-bottom, then left-to-right
+          // Sort into rows
           deduped.sort((a, b) => a.y - b.y);
           let rowGroups = [];
           let currentRow = [deduped[0]];
@@ -546,10 +540,7 @@
             }
           }
           rowGroups.push(currentRow);
-
-          // Sort each row left-to-right
           rowGroups.forEach(r => r.sort((a, b) => a.x - b.x));
-          detectedBoxes = rowGroups.flat();
 
           let numCols = Math.max(...rowGroups.map(r => r.length));
           let numRows = rowGroups.length;
@@ -558,11 +549,11 @@
           gridRows = numRows;
           document.getElementById('colsInput').value = numCols;
           document.getElementById('rowsInput').value = numRows;
-          currentPresetName = `${gridCols}×${gridRows} (${detectedBoxes.length} Frames)`;
+          currentPresetName = `${gridCols}×${gridRows} (${gridCols * gridRows} Frames)`;
           updateGridSummary();
 
-          // Set 4 corner pins from outermost detected box vertices
-          const firstBox = detectedBoxes[0];
+          // Snap the 4 Master Red Dots to the 4 outer box vertices
+          const firstBox = rowGroups[0][0];
           const topRowLast = rowGroups[0][rowGroups[0].length - 1];
           const botRowLast = rowGroups[rowGroups.length - 1][rowGroups[rowGroups.length - 1].length - 1];
           const botRowFirst = rowGroups[rowGroups.length - 1][0];
@@ -574,7 +565,7 @@
             { x: botRowFirst.x, y: botRowFirst.y + botRowFirst.h }
           ];
 
-          banner.innerText = `✅ Pixel-perfect snapped to all ${detectedBoxes.length} boxes!`;
+          banner.innerText = `✅ Snapped perspective grid to ${gridCols * gridRows} boxes! Drag red dots to fine-tune.`;
           banner.style.background = '#e8f5e9';
           banner.style.color = '#2e7d32';
           return true;
@@ -587,7 +578,7 @@
       }
 
       setManualDefaultCorners();
-      banner.innerText = '🎯 Drag the 4 red circles to fit the outer corners.';
+      banner.innerText = '🎯 Drag the 4 red dots onto the outer corners of your boxes.';
       banner.style.background = '#fff3e0';
       banner.style.color = '#e65100';
       return false;
@@ -625,18 +616,20 @@
       drawAdjuster();
     }
 
+    // --- MATHEMATICAL PERSPECTIVE GRID WITH EXACT PHYSICAL 8mm GAPS ---
     function getCellBounds(c, r) {
-      const gapX = gridCols > 1 ? 0.06 : 0.0;
-      const gapY = gridRows > 1 ? 0.04 : 0.0;
-      const totalGapW = gapX * (gridCols - 1);
-      const totalGapH = gapY * (gridRows - 1);
-      const cellW = (1.0 - totalGapW) / gridCols;
-      const cellH = (1.0 - totalGapH) / gridRows;
+      // Relative gap ratio based on physical template (8mm gap / 76mm box = ~0.105)
+      const gapRatio = 0.105;
 
-      const u0 = c * (cellW + gapX);
-      const u1 = u0 + cellW;
-      const v0 = r * (cellH + gapY);
-      const v1 = v0 + cellH;
+      const totalW = gridCols + (gridCols - 1) * gapRatio;
+      const totalH = gridRows + (gridRows - 1) * gapRatio;
+
+      const u0 = (c * (1.0 + gapRatio)) / totalW;
+      const u1 = (c * (1.0 + gapRatio) + 1.0) / totalW;
+
+      const v0 = (r * (1.0 + gapRatio)) / totalH;
+      const v1 = (r * (1.0 + gapRatio) + 1.0) / totalH;
+
       return { u0, u1, v0, v1 };
     }
 
@@ -644,38 +637,41 @@
       cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
       cropCtx.drawImage(loadedImage, 0, 0);
 
-      // 1. If exact boxes were detected and user hasn't manually dragged, draw 1:1 on top of each box!
-      if (detectedBoxes.length > 0) {
-        cropCtx.strokeStyle = '#ffeb3b';
-        cropCtx.lineWidth = Math.max(3, cropCanvas.width * 0.0045);
-        detectedBoxes.forEach(b => {
-          cropCtx.strokeRect(b.x, b.y, b.w, b.h);
-        });
-      } else {
-        // Fallback: draw dynamic interpolated boxes
-        cropCtx.strokeStyle = '#ffeb3b';
-        cropCtx.lineWidth = Math.max(3, cropCanvas.width * 0.0045);
+      // 1. Draw outer connecting blue quad
+      cropCtx.strokeStyle = 'rgba(33, 150, 243, 0.7)';
+      cropCtx.lineWidth = Math.max(3, cropCanvas.width * 0.004);
+      cropCtx.beginPath();
+      cropCtx.moveTo(corners[0].x, corners[0].y);
+      cropCtx.lineTo(corners[1].x, corners[1].y);
+      cropCtx.lineTo(corners[2].x, corners[2].y);
+      cropCtx.lineTo(corners[3].x, corners[3].y);
+      cropCtx.closePath();
+      cropCtx.stroke();
 
-        for (let r = 0; r < gridRows; r++) {
-          for (let c = 0; c < gridCols; c++) {
-            const { u0, u1, v0, v1 } = getCellBounds(c, r);
-            const p0 = interp(u0, v0);
-            const p1 = interp(u1, v0);
-            const p2 = interp(u1, v1);
-            const p3 = interp(u0, v1);
+      // 2. Draw interrelated yellow sub-boxes in perspective
+      cropCtx.strokeStyle = '#ffeb3b';
+      cropCtx.lineWidth = Math.max(3, cropCanvas.width * 0.0045);
 
-            cropCtx.beginPath();
-            cropCtx.moveTo(p0.x, p0.y);
-            cropCtx.lineTo(p1.x, p1.y);
-            cropCtx.lineTo(p2.x, p2.y);
-            cropCtx.lineTo(p3.x, p3.y);
-            cropCtx.closePath();
-            cropCtx.stroke();
-          }
+      for (let r = 0; r < gridRows; r++) {
+        for (let c = 0; c < gridCols; c++) {
+          const { u0, u1, v0, v1 } = getCellBounds(c, r);
+
+          const p0 = interp(u0, v0);
+          const p1 = interp(u1, v0);
+          const p2 = interp(u1, v1);
+          const p3 = interp(u0, v1);
+
+          cropCtx.beginPath();
+          cropCtx.moveTo(p0.x, p0.y);
+          cropCtx.lineTo(p1.x, p1.y);
+          cropCtx.lineTo(p2.x, p2.y);
+          cropCtx.lineTo(p3.x, p3.y);
+          cropCtx.closePath();
+          cropCtx.stroke();
         }
       }
 
-      // Draw red/orange corner grab handles
+      // 3. Draw the 4 Red/Orange Corner Handles
       const handleRadius = Math.max(18, cropCanvas.width * 0.028);
       corners.forEach(pt => {
         cropCtx.fillStyle = '#ff5722';
@@ -688,6 +684,7 @@
       });
     }
 
+    // Bilinear perspective interpolation
     function interp(u, v) {
       const [tl, tr, br, bl] = corners;
       return {
@@ -696,6 +693,7 @@
       };
     }
 
+    // Touch & Pointer Dragging
     function getCanvasCoords(e) {
       const rect = cropCanvas.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -713,10 +711,7 @@
       corners.forEach((pt, idx) => {
         if (Math.hypot(pt.x - pos.x, pt.y - pos.y) < touchDist) activeCorner = idx;
       });
-      if (activeCorner !== null) {
-        detectedBoxes = []; // User wants manual control
-        e.preventDefault();
-      }
+      if (activeCorner !== null) e.preventDefault();
     }
 
     function onPointerMove(e) {
@@ -727,7 +722,7 @@
         x: Math.max(0, Math.min(cropCanvas.width, pos.x)),
         y: Math.max(0, Math.min(cropCanvas.height, pos.y))
       };
-      drawAdjuster();
+      drawAdjuster(); // Dynamically warps all 6 boxes live!
     }
 
     function onPointerUp() { activeCorner = null; }
@@ -745,16 +740,18 @@
       const newPageFrames = [];
       const srcMat = cv.imread(cropCanvas);
 
-      // If exact boxes were detected, crop directly from their exact pixel locations!
-      if (detectedBoxes.length > 0) {
-        detectedBoxes.forEach(b => {
-          let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-            b.x, b.y,
-            b.x + b.w, b.y,
-            b.x + b.w, b.y + b.h,
-            b.x, b.y + b.h
-          ]);
+      for (let r = 0; r < gridRows; r++) {
+        for (let c = 0; c < gridCols; c++) {
+          const { u0, u1, v0, v1 } = getCellBounds(c, r);
+
+          const p0 = interp(u0, v0);
+          const p1 = interp(u1, v0);
+          const p2 = interp(u1, v1);
+          const p3 = interp(u0, v1);
+
+          let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [p0.x, p0.y, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y]);
           let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, outWidth, 0, outWidth, outHeight, 0, outHeight]);
+
           let M = cv.getPerspectiveTransform(srcTri, dstTri);
           let dst = new cv.Mat();
           cv.warpPerspective(srcMat, dst, M, new cv.Size(outWidth, outHeight), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
@@ -766,32 +763,6 @@
           newPageFrames.push(fCanvas);
 
           srcTri.delete(); dstTri.delete(); M.delete(); dst.delete();
-        });
-      } else {
-        // Fallback: interpolate via quad
-        for (let r = 0; r < gridRows; r++) {
-          for (let c = 0; c < gridCols; c++) {
-            const { u0, u1, v0, v1 } = getCellBounds(c, r);
-            const p0 = interp(u0, v0);
-            const p1 = interp(u1, v0);
-            const p2 = interp(u1, v1);
-            const p3 = interp(u0, v1);
-
-            let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [p0.x, p0.y, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y]);
-            let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, outWidth, 0, outWidth, outHeight, 0, outHeight]);
-
-            let M = cv.getPerspectiveTransform(srcTri, dstTri);
-            let dst = new cv.Mat();
-            cv.warpPerspective(srcMat, dst, M, new cv.Size(outWidth, outHeight), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
-
-            let fCanvas = document.createElement('canvas');
-            fCanvas.width = outWidth;
-            fCanvas.height = outHeight;
-            cv.imshow(fCanvas, dst);
-            newPageFrames.push(fCanvas);
-
-            srcTri.delete(); dstTri.delete(); M.delete(); dst.delete();
-          }
         }
       }
       srcMat.delete();
