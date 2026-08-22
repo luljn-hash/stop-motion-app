@@ -121,6 +121,21 @@
       margin-bottom: 8px;
     }
 
+    .gap-controls {
+      display: flex;
+      justify-content: space-around;
+      background: #f0f4f8;
+      padding: 8px 12px;
+      border-radius: 10px;
+      margin-top: 8px;
+      font-size: 0.82rem;
+      font-weight: bold;
+    }
+    .gap-controls input[type="range"] {
+      width: 100px;
+      margin-top: 4px;
+    }
+
     #cropCanvas {
       width: 100%;
       max-height: 55vh;
@@ -189,18 +204,17 @@
       margin-top: 12px;
     }
 
+    /* Clean Printable Template: Zero text, pure boxes */
     @media print {
-      @page { size: auto; margin: 8mm; }
+      @page { size: auto; margin: 10mm; }
       body * { visibility: hidden; }
       #printableGrid, #printableGrid * { visibility: visible; }
       #printableGrid {
-        position: absolute; left: 0; top: 0; width: 100vw;
+        position: absolute; left: 0; top: 0; width: 100vw; height: 100vh;
         display: flex !important; flex-direction: column; align-items: center; justify-content: center;
       }
       .print-container { display: grid !important; gap: 8mm; justify-content: center; }
-      .grid-box { border: 4px solid #000; border-radius: 4px; position: relative; box-sizing: border-box; }
-      .grid-number { position: absolute; top: 3mm; left: 3mm; font-size: 13pt; font-weight: bold; color: #aaa; }
-      .grid-hint { position: absolute; bottom: 3mm; right: 3mm; font-size: 8pt; color: #aaa; }
+      .grid-box { border: 4.5px solid #000; border-radius: 4px; position: relative; box-sizing: border-box; }
     }
     #printableGrid { display: none; }
   </style>
@@ -208,7 +222,7 @@
 <body>
 
   <h1>🎬 Smart Stop Motion Studio</h1>
-  <p>Auto-snaps interconnected perspective grid & exports animations!</p>
+  <p>True 3D projective perspective with automatic snap!</p>
 
   <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
   <input type="file" id="appendCameraInput" accept="image/*" capture="environment" style="display:none;">
@@ -217,7 +231,7 @@
   <div class="card" id="uploadCard">
     <label class="toggle-box">
       <input type="checkbox" id="autoDetectToggle" checked>
-      <span>✨ Auto-Detect & Snap Corner Dots</span>
+      <span>✨ Auto-Detect 3D Perspective Grid</span>
     </label>
 
     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -256,7 +270,7 @@
     </div>
 
     <div style="margin-top: 12px;">
-      <button class="btn btn-outline" onclick="prepareAndPrint()">🖨️ Print Matching Worksheet</button>
+      <button class="btn btn-outline" onclick="prepareAndPrint()">🖨️ Print Clean Worksheet</button>
     </div>
     
     <div style="margin-top: 8px;">
@@ -266,14 +280,26 @@
 
   <!-- Step 2: Interactive Interconnected Perspective Grid -->
   <div class="card" id="adjustCard" style="display:none;">
-    <div class="status-banner" id="snapStatusMsg" style="background:#e8f5e9; color:#2e7d32;">✨ Auto-snapping grid...</div>
+    <div class="status-banner" id="snapStatusMsg" style="background:#e8f5e9; color:#2e7d32;">✨ Auto-snapping perspective grid...</div>
     
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-      <span style="font-size:0.85rem; font-weight:bold;">🎯 Drag red dots to adjust perspective</span>
+      <span style="font-size:0.85rem; font-weight:bold;">🎯 Drag red dots to Box Corners</span>
       <button class="btn btn-purple btn-sm" onclick="triggerAutoDetect()">⚡ Re-Snap</button>
     </div>
 
     <canvas id="cropCanvas"></canvas>
+
+    <!-- Real-time Spacing Fine-Tuning Sliders -->
+    <div class="gap-controls">
+      <div>
+        <label>↕️ Row Gap: <span id="gapYVal">8</span>mm</label><br>
+        <input type="range" id="gapYSlider" min="0" max="25" value="8" step="1" oninput="onGapSliderChange()">
+      </div>
+      <div>
+        <label>↔️ Col Gap: <span id="gapXVal">8</span>mm</label><br>
+        <input type="range" id="gapXSlider" min="0" max="25" value="8" step="1" oninput="onGapSliderChange()">
+      </div>
+    </div>
 
     <div style="margin-top: 10px;">
       <button class="btn btn-blue" id="confirmCropBtn" onclick="cropAndAnimate()">✨ Generate Stop Motion</button>
@@ -310,6 +336,7 @@
     <div id="exportStatus" style="font-size: 0.85rem; margin-top: 8px; color: #555;"></div>
   </div>
 
+  <!-- Clean Printable Worksheet -->
   <div id="printableGrid">
     <div class="print-container" id="printBoxesContainer"></div>
   </div>
@@ -320,6 +347,11 @@
     let gridRows = 3;
     let aspectRatio = 1.0;
     let currentPresetName = '2×3 (6 Frames)';
+
+    let boxWidthMm = 76;
+    let boxHeightMm = 76;
+    let gapXMm = 8;
+    let gapYMm = 8;
 
     let outWidth = 500;
     let outHeight = 500;
@@ -339,7 +371,7 @@
 
     function onOpenCvReady() {
       openCvLoaded = true;
-      console.log('OpenCV Engine Loaded');
+      console.log('OpenCV Optical Engine Ready');
     }
 
     function toggleSettings() {
@@ -354,6 +386,14 @@
       } else {
         outHeight = 500;
         outWidth = Math.round(500 * aspectRatio);
+      }
+
+      if (aspectRatio === 1.85) {
+        boxWidthMm = 80;
+        boxHeightMm = 43;
+      } else {
+        boxWidthMm = 76;
+        boxHeightMm = 76;
       }
     }
 
@@ -385,25 +425,26 @@
       document.getElementById('gridSummary').innerText = `${currentPresetName} • ${ratioName}`;
     }
 
+    function onGapSliderChange() {
+      gapYMm = parseInt(document.getElementById('gapYSlider').value) || 8;
+      gapXMm = parseInt(document.getElementById('gapXSlider').value) || 8;
+      document.getElementById('gapYVal').innerText = gapYMm;
+      document.getElementById('gapXVal').innerText = gapXMm;
+      drawAdjuster();
+    }
+
     function prepareAndPrint() {
       const container = document.getElementById('printBoxesContainer');
       container.innerHTML = '';
-      
-      let boxW = 80;
-      let boxH = Math.round(80 / aspectRatio);
-      if (aspectRatio === 1.0) { boxW = 76; boxH = 76; }
-
-      container.style.gridTemplateColumns = `repeat(${gridCols}, ${boxW}mm)`;
-      container.style.gridTemplateRows = `repeat(${gridRows}, ${boxH}mm)`;
+      container.style.gridTemplateColumns = `repeat(${gridCols}, ${boxWidthMm}mm)`;
+      container.style.gridTemplateRows = `repeat(${gridRows}, ${boxHeightMm}mm)`;
 
       const totalBoxes = gridCols * gridRows;
-
       for (let i = 1; i <= totalBoxes; i++) {
         const box = document.createElement('div');
         box.className = 'grid-box';
-        box.style.width = `${boxW}mm`;
-        box.style.height = `${boxH}mm`;
-        box.innerHTML = `<span class="grid-number">${i}</span><span class="grid-hint">${boxW}×${boxH}mm</span>`;
+        box.style.width = `${boxWidthMm}mm`;
+        box.style.height = `${boxHeightMm}mm`;
         container.appendChild(box);
       }
       window.print();
@@ -431,14 +472,14 @@
       reader.readAsDataURL(file);
     }
 
-    // --- AUTO-SNAP THE 4 CORNER DOTS TO THE BOX GRID ---
+    // --- TRUE 3D OPTICAL PERSPECTIVE AUTO-SNAP ---
     function runSmartAutoDetect() {
       const autoEnabled = document.getElementById('autoDetectToggle').checked;
       const banner = document.getElementById('snapStatusMsg');
 
       if (!autoEnabled) {
         setManualDefaultCorners();
-        banner.innerText = '✋ Manual mode. Drag the 4 red dots to the corners of your boxes.';
+        banner.innerText = '✋ Manual mode. Drag red dots to fit your boxes.';
         banner.style.background = '#e3f2fd';
         banner.style.color = '#1565c0';
         return false;
@@ -474,7 +515,7 @@
       try {
         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
         cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-        cv.threshold(blurred, thresh, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
+        cv.adaptiveThreshold(blurred, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 41, 5);
 
         let kernel = cv.Mat.ones(3, 3, cv.CV_8U);
         cv.morphologyEx(thresh, closed, cv.MORPH_CLOSE, kernel);
@@ -482,9 +523,13 @@
 
         cv.findContours(closed, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);
 
-        let validBoxes = [];
+        let allPoints = [];
         const totalArea = detW * detH;
-        const minArea = totalArea * 0.02;
+        
+        // Strict box filters to ignore header text completely
+        const minBoxW = detW * 0.15; 
+        const minBoxH = detH * 0.10; 
+        const minArea = totalArea * 0.018;
         const maxArea = totalArea * 0.35;
 
         for (let i = 0; i < contours.size(); ++i) {
@@ -499,159 +544,37 @@
           if (approx.rows === 4 && cv.isContourConvex(approx)) {
             let rect = cv.boundingRect(approx);
             let asp = rect.width / rect.height;
-            if (asp >= 0.70 && asp <= 2.2) {
-              validBoxes.push({
-                x: rect.x / scale,
-                y: rect.y / scale,
-                w: rect.width / scale,
-                h: rect.height / scale,
-                cx: (rect.x + rect.width / 2) / scale,
-                cy: (rect.y + rect.height / 2) / scale,
-                area: area
-              });
+            // Reject any header text or small noise
+            if (rect.width >= minBoxW && rect.height >= minBoxH && asp >= 0.65 && asp <= 1.6) {
+              for (let j = 0; j < 4; j++) {
+                allPoints.push({
+                  x: approx.data32S[j * 2] / scale,
+                  y: approx.data32S[j * 2 + 1] / scale
+                });
+              }
             }
           }
           approx.delete();
         }
 
-        let deduped = [];
-        validBoxes.sort((a,b) => b.area - a.area);
-        validBoxes.forEach(b => {
-          let overlaps = deduped.some(d => Math.hypot(d.cx - b.cx, d.cy - b.cy) < (b.w * 0.4));
-          if (!overlaps) deduped.push(b);
-        });
+        if (allPoints.length >= 8) {
+          // 4 True Optical Extrema (TL, TR, BR, BL)
+          let tl = allPoints.reduce((min, p) => (p.x + p.y < min.x + min.y ? p : min), allPoints[0]);
+          let br = allPoints.reduce((max, p) => (p.x + p.y > max.x + max.y ? p : max), allPoints[0]);
+          let tr = allPoints.reduce((max, p) => (p.x - p.y > max.x - max.y ? p : max), allPoints[0]);
+          let bl = allPoints.reduce((min, p) => (p.x - p.y < min.x - min.y ? p : min), allPoints[0]);
 
-        if (deduped.length >= 2) {
-          try {
-            // Sort into rows
-            deduped.sort((a, b) => a.y - b.y);
-            let rowGroups = [];
-            let currentRow = [deduped[0]];
+          corners = [
+            { x: tl.x, y: tl.y },
+            { x: tr.x, y: tr.y },
+            { x: br.x, y: br.y },
+            { x: bl.x, y: bl.y }
+          ];
 
-            for (let i = 1; i < deduped.length; i++) {
-              if (Math.abs(deduped[i].y - currentRow[0].y) < (deduped[i].h * 0.5)) {
-                currentRow.push(deduped[i]);
-              } else {
-                rowGroups.push(currentRow);
-                currentRow = [deduped[i]];
-              }
-            }
-            rowGroups.push(currentRow);
-            rowGroups.forEach(r => r.sort((a, b) => a.x - b.x));
-
-            // Cluster x-centers across ALL detected boxes (not per-row) into column
-            // bins, so column indexing survives a row that's short a box.
-            const avgW = deduped.reduce((s, b) => s + b.w, 0) / deduped.length;
-            let colBins = [];
-            deduped.slice().sort((a, b) => a.cx - b.cx).forEach(box => {
-              let match = null;
-              for (let k = 0; k < colBins.length; k++) {
-                if (Math.abs(colBins[k].center - box.cx) < avgW * 0.5) { match = colBins[k]; break; }
-              }
-              if (match) {
-                match.members.push(box.cx);
-                match.center = match.members.reduce((s, v) => s + v, 0) / match.members.length;
-              } else {
-                colBins.push({ center: box.cx, members: [box.cx] });
-              }
-            });
-            colBins.sort((a, b) => a.center - b.center);
-
-            const numCols = colBins.length;
-            const numRows = rowGroups.length;
-
-            gridCols = numCols;
-            gridRows = numRows;
-            document.getElementById('colsInput').value = numCols;
-            document.getElementById('rowsInput').value = numRows;
-            currentPresetName = `${gridCols}×${gridRows} (${gridCols * gridRows} Frames)`;
-            updateGridSummary();
-
-            // Safe baseline: snap the 4 master corners to the outermost detected
-            // box vertices. This is plain arithmetic on values we already have, so
-            // it can't fail, and it's what gets used if the fancier fit below can't
-            // improve on it for any reason.
-            const firstBox = rowGroups[0][0];
-            const topRowLast = rowGroups[0][rowGroups[0].length - 1];
-            const botRowLast = rowGroups[rowGroups.length - 1][rowGroups[rowGroups.length - 1].length - 1];
-            const botRowFirst = rowGroups[rowGroups.length - 1][0];
-            corners = [
-              { x: firstBox.x, y: firstBox.y },
-              { x: topRowLast.x + topRowLast.w, y: topRowLast.y },
-              { x: botRowLast.x + botRowLast.w, y: botRowLast.y + botRowLast.h },
-              { x: botRowFirst.x, y: botRowFirst.y + botRowFirst.h }
-            ];
-
-            // Now try to IMPROVE on that baseline with a homography fit through
-            // every detected box (not just the 4 outer ones), so one obscured
-            // corner box doesn't drag a corner inward. Any failure here - a bad
-            // fit, a degenerate solve, an OpenCV hiccup - just keeps the baseline
-            // above; it never falls back to the generic "drag it yourself" default.
-            let correspondences = [];
-            rowGroups.forEach((rowArr, rIdx) => {
-              rowArr.forEach(box => {
-                let colIdx = 0, bestDist = Infinity;
-                colBins.forEach((bin, idx) => {
-                  const d = Math.abs(bin.center - box.cx);
-                  if (d < bestDist) { bestDist = d; colIdx = idx; }
-                });
-                correspondences.push({ col: colIdx, row: rIdx, x: box.cx, y: box.cy });
-              });
-            });
-
-            if (correspondences.length >= 4) {
-              let srcMat = null, dstMat = null, H = null;
-              try {
-                const gapRatio = 0.105;
-                const totalW = gridCols + (gridCols - 1) * gapRatio;
-                const totalH = gridRows + (gridRows - 1) * gapRatio;
-
-                let srcArr = [];
-                let dstArr = [];
-                correspondences.forEach(pt => {
-                  const u0 = (pt.col * (1.0 + gapRatio)) / totalW;
-                  const u1 = (pt.col * (1.0 + gapRatio) + 1.0) / totalW;
-                  const v0 = (pt.row * (1.0 + gapRatio)) / totalH;
-                  const v1 = (pt.row * (1.0 + gapRatio) + 1.0) / totalH;
-                  srcArr.push((u0 + u1) / 2, (v0 + v1) / 2);
-                  dstArr.push(pt.x, pt.y);
-                });
-
-                srcMat = cv.matFromArray(correspondences.length, 1, cv.CV_32FC2, srcArr);
-                dstMat = cv.matFromArray(correspondences.length, 1, cv.CV_32FC2, dstArr);
-                H = cv.findHomography(srcMat, dstMat, 0);
-
-                if (H && H.rows === 3 && H.cols === 3) {
-                  const hd = H.data64F;
-                  const mapPoint = (u, v) => {
-                    const w = hd[6] * u + hd[7] * v + hd[8];
-                    return {
-                      x: (hd[0] * u + hd[1] * v + hd[2]) / w,
-                      y: (hd[3] * u + hd[4] * v + hd[5]) / w
-                    };
-                  };
-                  const homCorners = [ mapPoint(0, 0), mapPoint(1, 0), mapPoint(1, 1), mapPoint(0, 1) ];
-                  const sane = homCorners.every(p =>
-                    Number.isFinite(p.x) && Number.isFinite(p.y) &&
-                    p.x > -detW && p.x < detW * 2 && p.y > -detH && p.y < detH * 2
-                  );
-                  if (sane) corners = homCorners;
-                }
-              } catch (homErr) {
-                console.warn("Homography fit skipped, using box-corner baseline:", homErr);
-              }
-              try { if (srcMat) srcMat.delete(); } catch (e) {}
-              try { if (dstMat) dstMat.delete(); } catch (e) {}
-              try { if (H) H.delete(); } catch (e) {}
-            }
-
-            banner.innerText = `✅ Snapped perspective grid to ${gridCols * gridRows} boxes! Drag red dots to fine-tune.`;
-            banner.style.background = '#e8f5e9';
-            banner.style.color = '#2e7d32';
-            return true;
-          } catch (gridErr) {
-            console.warn("Grid corner snap failed entirely, falling back to manual:", gridErr);
-          }
+          banner.innerText = `✅ 3D Perspective locked! Drag red dots or sliders to tweak.`;
+          banner.style.background = '#e8f5e9';
+          banner.style.color = '#2e7d32';
+          return true;
         }
 
       } catch (err) {
@@ -661,7 +584,7 @@
       }
 
       setManualDefaultCorners();
-      banner.innerText = '🎯 Drag the 4 red dots onto the outer corners of your boxes.';
+      banner.innerText = '🎯 Drag the 4 red dots onto the outer corners of Box 1, 2, 5 & 6.';
       banner.style.background = '#fff3e0';
       banner.style.color = '#e65100';
       return false;
@@ -672,10 +595,10 @@
       const w = loadedImage.width;
       const h = loadedImage.height;
       corners = [
-        { x: w * 0.15, y: h * 0.15 },
-        { x: w * 0.85, y: h * 0.15 },
-        { x: w * 0.85, y: h * 0.85 },
-        { x: w * 0.15, y: h * 0.85 }
+        { x: w * 0.14, y: h * 0.08 },
+        { x: w * 0.86, y: h * 0.08 },
+        { x: w * 0.86, y: h * 0.90 },
+        { x: w * 0.14, y: h * 0.90 }
       ];
     }
 
@@ -699,28 +622,53 @@
       drawAdjuster();
     }
 
-    // --- MATHEMATICAL PERSPECTIVE GRID WITH EXACT PHYSICAL 8mm GAPS ---
+    // --- EXACT PHYSICAL GAP RATIOS & HOMOGRAPHY MAPPING ---
     function getCellBounds(c, r) {
-      // Relative gap ratio based on physical template (8mm gap / 76mm box = ~0.105)
-      const gapRatio = 0.105;
+      const totalW = (gridCols * boxWidthMm) + ((gridCols - 1) * gapXMm);
+      const totalH = (gridRows * boxHeightMm) + ((gridRows - 1) * gapYMm);
 
-      const totalW = gridCols + (gridCols - 1) * gapRatio;
-      const totalH = gridRows + (gridRows - 1) * gapRatio;
+      const u0 = (c * (boxWidthMm + gapXMm)) / totalW;
+      const u1 = (c * (boxWidthMm + gapXMm) + boxWidthMm) / totalW;
 
-      const u0 = (c * (1.0 + gapRatio)) / totalW;
-      const u1 = (c * (1.0 + gapRatio) + 1.0) / totalW;
-
-      const v0 = (r * (1.0 + gapRatio)) / totalH;
-      const v1 = (r * (1.0 + gapRatio) + 1.0) / totalH;
+      const v0 = (r * (boxHeightMm + gapYMm)) / totalH;
+      const v1 = (r * (boxHeightMm + gapYMm) + boxHeightMm) / totalH;
 
       return { u0, u1, v0, v1 };
+    }
+
+    // True 3x3 Optical Perspective Homography Projector
+    function projectHomographyPoint(u, v) {
+      if (openCvLoaded) {
+        try {
+          let src = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, 1, 0, 1, 1, 0, 1]);
+          let dst = cv.matFromArray(4, 1, cv.CV_32FC2, [
+            corners[0].x, corners[0].y,
+            corners[1].x, corners[1].y,
+            corners[2].x, corners[2].y,
+            corners[3].x, corners[3].y
+          ]);
+          let H = cv.getPerspectiveTransform(src, dst);
+          let h = H.data64F;
+          let x = h[0]*u + h[1]*v + h[2];
+          let y = h[3]*u + h[4]*v + h[5];
+          let w = h[6]*u + h[7]*v + h[8];
+          src.delete(); dst.delete(); H.delete();
+          return { x: x / w, y: y / w };
+        } catch(e) {}
+      }
+      // Bilinear fallback
+      const [tl, tr, br, bl] = corners;
+      return {
+        x: (1-u)*(1-v)*tl.x + u*(1-v)*tr.x + u*v*br.x + (1-u)*v*bl.x,
+        y: (1-u)*(1-v)*tl.y + u*(1-v)*tr.y + u*v*br.y + (1-u)*v*bl.y
+      };
     }
 
     function drawAdjuster() {
       cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
       cropCtx.drawImage(loadedImage, 0, 0);
 
-      // 1. Draw outer connecting blue quad
+      // 1. Blue Outer Perspective Quad
       cropCtx.strokeStyle = 'rgba(33, 150, 243, 0.7)';
       cropCtx.lineWidth = Math.max(3, cropCanvas.width * 0.004);
       cropCtx.beginPath();
@@ -731,7 +679,7 @@
       cropCtx.closePath();
       cropCtx.stroke();
 
-      // 2. Draw interrelated yellow sub-boxes in perspective
+      // 2. Yellow Sub-Boxes with True 3D Optical Homography
       cropCtx.strokeStyle = '#ffeb3b';
       cropCtx.lineWidth = Math.max(3, cropCanvas.width * 0.0045);
 
@@ -739,10 +687,10 @@
         for (let c = 0; c < gridCols; c++) {
           const { u0, u1, v0, v1 } = getCellBounds(c, r);
 
-          const p0 = interp(u0, v0);
-          const p1 = interp(u1, v0);
-          const p2 = interp(u1, v1);
-          const p3 = interp(u0, v1);
+          const p0 = projectHomographyPoint(u0, v0);
+          const p1 = projectHomographyPoint(u1, v0);
+          const p2 = projectHomographyPoint(u1, v1);
+          const p3 = projectHomographyPoint(u0, v1);
 
           cropCtx.beginPath();
           cropCtx.moveTo(p0.x, p0.y);
@@ -754,7 +702,7 @@
         }
       }
 
-      // 3. Draw the 4 Red/Orange Corner Handles
+      // 3. Red Corner Handles
       const handleRadius = Math.max(18, cropCanvas.width * 0.028);
       corners.forEach(pt => {
         cropCtx.fillStyle = '#ff5722';
@@ -765,15 +713,6 @@
         cropCtx.lineWidth = 3;
         cropCtx.stroke();
       });
-    }
-
-    // Bilinear perspective interpolation
-    function interp(u, v) {
-      const [tl, tr, br, bl] = corners;
-      return {
-        x: (1-u)*(1-v)*tl.x + u*(1-v)*tr.x + u*v*br.x + (1-u)*v*bl.x,
-        y: (1-u)*(1-v)*tl.y + u*(1-v)*tr.y + u*v*br.y + (1-u)*v*bl.y
-      };
     }
 
     // Touch & Pointer Dragging
@@ -805,7 +744,7 @@
         x: Math.max(0, Math.min(cropCanvas.width, pos.x)),
         y: Math.max(0, Math.min(cropCanvas.height, pos.y))
       };
-      drawAdjuster(); // Dynamically warps all 6 boxes live!
+      drawAdjuster();
     }
 
     function onPointerUp() { activeCorner = null; }
@@ -827,10 +766,10 @@
         for (let c = 0; c < gridCols; c++) {
           const { u0, u1, v0, v1 } = getCellBounds(c, r);
 
-          const p0 = interp(u0, v0);
-          const p1 = interp(u1, v0);
-          const p2 = interp(u1, v1);
-          const p3 = interp(u0, v1);
+          const p0 = projectHomographyPoint(u0, v0);
+          const p1 = projectHomographyPoint(u1, v0);
+          const p2 = projectHomographyPoint(u1, v1);
+          const p3 = projectHomographyPoint(u0, v1);
 
           let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [p0.x, p0.y, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y]);
           let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, outWidth, 0, outWidth, outHeight, 0, outHeight]);
