@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Kids Stop-Motion Workshop</title>
+  <title>Post-it Stop Motion</title>
   <!-- GIF creation library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.3.2/gifshot.min.js"></script>
   <!-- OpenCV.js for automatic square detection -->
@@ -89,30 +89,59 @@
     }
     .controls input[type=range] { width: 120px; }
 
-    /* Printable Template */
+    /* --- Exact Post-it Template Print Styling (3x3 inch / 76x76mm) --- */
     @media print {
+      @page {
+        size: auto;
+        margin: 8mm;
+      }
       body * { visibility: hidden; }
       #printableGrid, #printableGrid * { visibility: visible; }
       #printableGrid {
         position: absolute;
-        left: 0; top: 0;
-        width: 100vw; height: 100vh;
+        left: 0;
+        top: 0;
+        width: 100vw;
+        display: flex !important;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      .template-title {
+        font-size: 16pt;
+        font-weight: bold;
+        margin-bottom: 8px;
+        color: #000;
+      }
+      .boxes-container {
         display: grid !important;
-        grid-template-columns: 1fr 1fr;
-        grid-template-rows: 1fr 1fr 1fr;
-        gap: 20px;
-        padding: 40px;
-        box-sizing: border-box;
+        grid-template-columns: 76mm 76mm;
+        grid-template-rows: 76mm 76mm 76mm;
+        gap: 8mm;
+        justify-content: center;
       }
       .grid-box {
-        border: 5px solid #000;
-        border-radius: 8px;
+        width: 76mm;
+        height: 76mm;
+        border: 4px solid #000; /* Bold outline for auto-detection */
+        border-radius: 4px;
         position: relative;
+        box-sizing: border-box;
       }
       .grid-number {
         position: absolute;
-        top: 8px; left: 8px;
-        font-size: 24px; font-weight: bold;
+        top: 3mm;
+        left: 3mm;
+        font-size: 14pt;
+        font-weight: bold;
+        color: #bbb;
+      }
+      .grid-hint {
+        position: absolute;
+        bottom: 3mm;
+        right: 3mm;
+        font-size: 8pt;
+        color: #bbb;
       }
     }
     #printableGrid { display: none; }
@@ -120,17 +149,17 @@
 </head>
 <body>
 
-  <h1>🎬 Stop-Motion Magic</h1>
-  <p>Draw frames on paper, take a photo, and watch it move!</p>
+  <h1>🎬 Post-it Stop Motion</h1>
+  <p>Stick 6 Post-it notes, snap a photo, and watch them animate!</p>
 
-  <!-- Step 1: Capture / Template -->
+  <!-- Step 1: Print / Capture -->
   <div class="card">
-    <button class="btn btn-outline" onclick="window.print()">🖨️ Print 6-Box Template</button>
+    <button class="btn btn-outline" onclick="window.print()">🖨️ Print 6 Post-it Template</button>
     <div style="margin-top: 10px;">
       <label for="cameraInput" class="btn btn-green">📷 Snap Photo / Upload</label>
       <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
     </div>
-    <div id="cvStatus" style="font-size: 0.8rem; color: #888; margin-top: 6px;">Loading smart detector...</div>
+    <div id="cvStatus" style="font-size: 0.8rem; color: #888; margin-top: 6px;">Loading detector...</div>
   </div>
 
   <!-- Step 2: Stop Motion Player -->
@@ -143,21 +172,24 @@
       <input type="range" id="fpsSlider" min="2" max="15" value="6" oninput="updateFps(this.value)">
     </div>
 
-    <!-- Frames thumbnail preview -->
+    <!-- Thumbnails -->
     <div class="frame-strip" id="frameStrip"></div>
 
     <button class="btn btn-green" id="exportBtn" onclick="exportGif()" style="margin-top: 12px;">💾 Save as GIF</button>
     <div id="gifStatus" style="font-size: 0.85rem; margin-top: 6px; color: #666;"></div>
   </div>
 
-  <!-- Printable Worksheet DOM Elements (Hidden on screen, shown in print) -->
+  <!-- Printable Post-it Template (Visible only when printing) -->
   <div id="printableGrid">
-    <div class="grid-box"><span class="grid-number">1</span></div>
-    <div class="grid-box"><span class="grid-number">2</span></div>
-    <div class="grid-box"><span class="grid-number">3</span></div>
-    <div class="grid-box"><span class="grid-number">4</span></div>
-    <div class="grid-box"><span class="grid-number">5</span></div>
-    <div class="grid-box"><span class="grid-number">6</span></div>
+    <div class="template-title">Stick your 6 Post-it notes inside the boxes ⬇️</div>
+    <div class="boxes-container">
+      <div class="grid-box"><span class="grid-number">1</span><span class="grid-hint">3x3" Post-it</span></div>
+      <div class="grid-box"><span class="grid-number">2</span><span class="grid-hint">3x3" Post-it</span></div>
+      <div class="grid-box"><span class="grid-number">3</span><span class="grid-hint">3x3" Post-it</span></div>
+      <div class="grid-box"><span class="grid-number">4</span><span class="grid-hint">3x3" Post-it</span></div>
+      <div class="grid-box"><span class="grid-number">5</span><span class="grid-hint">3x3" Post-it</span></div>
+      <div class="grid-box"><span class="grid-number">6</span><span class="grid-hint">3x3" Post-it</span></div>
+    </div>
   </div>
 
   <script>
@@ -173,7 +205,7 @@
       document.getElementById('cvStatus').innerText = '✨ Detector ready!';
     }
 
-    // Handle Image Upload
+    // Photo input
     document.getElementById('cameraInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -189,7 +221,6 @@
       reader.readAsDataURL(file);
     });
 
-    // Detect squares or fallback to grid slicing
     function processImage(img) {
       frames = [];
       const canvas = document.createElement('canvas');
@@ -202,7 +233,7 @@
         try {
           frames = detectSquaresWithOpenCV(canvas, img);
         } catch (err) {
-          console.warn("OpenCV detection fell back to standard 2x3 grid", err);
+          console.warn("OpenCV fallback to grid slice", err);
           frames = sliceGrid(img, 2, 3);
         }
       } else {
@@ -210,13 +241,12 @@
       }
 
       if (frames.length === 0) {
-        frames = sliceGrid(img, 2, 3); // Fallback: 2 rows x 3 cols
+        frames = sliceGrid(img, 2, 3);
       }
 
       showPlayer();
     }
 
-    // OpenCV 4-corner square finder
     function detectSquaresWithOpenCV(canvas, img) {
       let src = cv.imread(canvas);
       let gray = new cv.Mat();
@@ -227,7 +257,6 @@
       cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
       cv.GaussianBlur(gray, gray, new cv.Size(5, 5), 0);
       cv.adaptiveThreshold(gray, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 15, 3);
-
       cv.findContours(thresh, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
       let detected = [];
@@ -248,15 +277,12 @@
         approx.delete();
       }
 
-      // Cleanup OpenCV memory
       src.delete(); gray.delete(); thresh.delete(); contours.delete(); hierarchy.delete();
 
       if (detected.length < 2) return [];
 
-      // Sort top-to-bottom, left-to-right
       detected.sort((a, b) => (Math.floor(a.y / 150) - Math.floor(b.y / 150)) || (a.x - b.x));
 
-      // Crop frames to 400x400 canvases
       return detected.map(box => {
         let frameCanvas = document.createElement('canvas');
         frameCanvas.width = 400;
@@ -267,7 +293,6 @@
       });
     }
 
-    // Fallback: Slices evenly into rows x cols
     function sliceGrid(img, cols, rows) {
       let result = [];
       let cellW = img.width / cols;
@@ -286,13 +311,12 @@
       return result;
     }
 
-    // Display & Animation Loop
     function showPlayer() {
       document.getElementById('playerCard').style.display = 'block';
       const strip = document.getElementById('frameStrip');
       strip.innerHTML = '';
 
-      frames.forEach((fCanvas, idx) => {
+      frames.forEach((fCanvas) => {
         let imgThumb = document.createElement('img');
         imgThumb.src = fCanvas.toDataURL();
         imgThumb.className = 'frame-thumb';
@@ -334,7 +358,6 @@
       if (isPlaying) startPlayback();
     }
 
-    // Export Animation to GIF
     function exportGif() {
       const status = document.getElementById('gifStatus');
       status.innerText = 'Rendering GIF, please wait...';
@@ -349,7 +372,7 @@
         numWorkers: 2
       }, function(obj) {
         if (!obj.error) {
-          status.innerHTML = `<a href="${obj.image}" download="stopmotion.gif" class="btn btn-green" style="margin-top:8px;">⬇️ Tap Here to Save GIF</a>`;
+          status.innerHTML = `<a href="${obj.image}" download="postit_animation.gif" class="btn btn-green" style="margin-top:8px;">⬇️ Tap Here to Save GIF</a>`;
         } else {
           status.innerText = 'Could not generate GIF.';
         }
