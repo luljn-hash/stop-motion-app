@@ -197,32 +197,28 @@
       margin-top: 12px;
     }
 
-    /* --- REGLAS DE IMPRESIÓN CORREGIDAS (1 SOLA PÁGINA) --- */
+    /* --- REGLAS DE IMPRESIÓN CORREGIDAS (SIN CORTES, 1 SOLA PÁGINA) --- */
     @media print {
       @page {
         size: portrait;
-        margin: 10mm;
+        margin: 12mm;
       }
       html, body {
         width: 100% !important;
-        height: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
         background: #ffffff !important;
-        overflow: hidden !important;
       }
       /* Ocultar interfaz web */
       body > *:not(#printableGrid) {
         display: none !important;
       }
-      /* Contenedor imprimible principal */
+      /* Contenedor imprimible principal con margen superior seguro */
       #printableGrid {
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        justify-content: center !important;
+        display: block !important;
         width: 100% !important;
-        height: 100vh !important;
+        margin: 0 auto !important;
+        padding-top: 12mm !important; /* Evita que el borde superior se corte */
         box-sizing: border-box !important;
         page-break-inside: avoid !important;
         page-break-after: avoid !important;
@@ -231,9 +227,8 @@
       /* Cuadrícula CSS real para impresión */
       .print-container {
         display: grid !important;
-        margin: auto !important;
+        margin: 0 auto !important;
         justify-content: center !important;
-        align-content: center !important;
         box-sizing: border-box !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
@@ -313,7 +308,7 @@
     </div>
 
     <div style="margin-top: 12px;">
-      <button class="btn btn-outline" onclick="prepareAndPrint()">🖨️ Imprimir Plantilla (1 Página)</button>
+      <button class="btn btn-outline" onclick="prepareAndPrint()">🖨️ Imprimir Plantilla (1 Hoja)</button>
     </div>
     
     <div style="display: flex; gap: 8px; justify-content: center; margin-top: 10px;">
@@ -466,14 +461,14 @@
       document.getElementById('gridSummary').innerText = `${currentPresetName} • ${ratioName}`;
     }
 
-    // --- CÁLCULO PRECISO PARA 1 SOLA HOJA CARTA / A4 ---
+    // --- CÁLCULO SEGURO Y CENTRADO PARA 1 HOJA ---
     function prepareAndPrint() {
       const container = document.getElementById('printBoxesContainer');
       container.innerHTML = '';
 
-      // Área segura para Carta y A4 (Ancho máx: 170mm, Alto máx: 230mm)
-      const maxPrintW = 170;
-      const maxPrintH = 225;
+      // Área segura para Carta y A4 (Ancho máx: 160mm, Alto máx: 200mm)
+      const maxPrintW = 160;
+      const maxPrintH = 200;
       const gapMm = gridRows >= 4 || gridCols >= 3 ? 8 : 12;
 
       const maxWFromCols = (maxPrintW - (gridCols - 1) * gapMm) / gridCols;
@@ -747,7 +742,7 @@
       boxes.forEach((box, idx) => {
         const [p0, p1, p2, p3] = box.corners;
 
-        // 1. Contorno amarillo
+        // Contorno amarillo
         cropCtx.strokeStyle = '#ffeb3b';
         cropCtx.lineWidth = Math.max(3, cropCanvas.width * 0.004);
         cropCtx.beginPath();
@@ -758,7 +753,7 @@
         cropCtx.closePath();
         cropCtx.stroke();
 
-        // 2. Número identificador
+        // Número identificador
         const cx = (p0.x + p1.x + p2.x + p3.x) / 4;
         const cy = (p0.y + p1.y + p2.y + p3.y) / 4;
 
@@ -773,7 +768,7 @@
         cropCtx.textBaseline = 'middle';
         cropCtx.fillText(String(idx + 1), cx, cy);
 
-        // 3. Puntos rojos
+        // Puntos rojos
         box.corners.forEach(pt => {
           cropCtx.fillStyle = '#ff5722';
           cropCtx.beginPath();
