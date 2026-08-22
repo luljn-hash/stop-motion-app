@@ -207,7 +207,7 @@
 <body>
 
   <h1>🎬 Smart Stop Motion Studio</h1>
-  <p>Auto-snaps interconnected perspective grid & exports animations!</p>
+  <p>Auto-snaps 3D perspective grid & exports animations!</p>
 
   <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
   <input type="file" id="appendCameraInput" accept="image/*" capture="environment" style="display:none;">
@@ -216,7 +216,7 @@
   <div class="card" id="uploadCard">
     <label class="toggle-box">
       <input type="checkbox" id="autoDetectToggle" checked>
-      <span>✨ Auto-Detect & Snap Corner Dots</span>
+      <span>✨ Auto-Detect 3D Perspective Grid</span>
     </label>
 
     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -265,10 +265,10 @@
 
   <!-- Step 2: Interactive Interconnected Perspective Grid -->
   <div class="card" id="adjustCard" style="display:none;">
-    <div class="status-banner" id="snapStatusMsg" style="background:#e8f5e9; color:#2e7d32;">✨ Auto-snapping grid...</div>
+    <div class="status-banner" id="snapStatusMsg" style="background:#e8f5e9; color:#2e7d32;">✨ Auto-snapping perspective grid...</div>
     
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-      <span style="font-size:0.85rem; font-weight:bold;">🎯 Drag red dots to adjust perspective</span>
+      <span style="font-size:0.85rem; font-weight:bold;">🎯 Drag red dots to fine-tune perspective</span>
       <button class="btn btn-purple btn-sm" onclick="triggerAutoDetect()">⚡ Re-Snap</button>
     </div>
 
@@ -385,7 +385,7 @@
       document.getElementById('gridSummary').innerText = `${currentPresetName} • ${ratioName}`;
     }
 
-    // Clean Printable Worksheet Generator (Pure boxes, no text)
+    // Clean Printable Worksheet Generator
     function prepareAndPrint() {
       const container = document.getElementById('printBoxesContainer');
       container.innerHTML = '';
@@ -430,7 +430,7 @@
       reader.readAsDataURL(file);
     }
 
-    // --- SMART FULL-GRID SNAP WITH SHADOW NORMALIZATION ---
+    // --- TRUE 3D PERSPECTIVE AUTO-SNAP (EXTRACTS TILTED/ANGLED VERTICES) ---
     function runSmartAutoDetect() {
       const autoEnabled = document.getElementById('autoDetectToggle').checked;
       const banner = document.getElementById('snapStatusMsg');
@@ -473,8 +473,6 @@
       try {
         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
         cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-
-        // Adaptive threshold with large window to eliminate uneven room shadows
         cv.adaptiveThreshold(blurred, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 41, 5);
 
         let kernel = cv.Mat.ones(3, 3, cv.CV_8U);
@@ -483,9 +481,9 @@
 
         cv.findContours(closed, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);
 
-        let validBoxes = [];
+        let allPoints = [];
         const totalArea = detW * detH;
-        const minBoxW = detW * 0.16; 
+        const minBoxW = detW * 0.15; 
         const minBoxH = detH * 0.10; 
         const minArea = totalArea * 0.018;
         const maxArea = totalArea * 0.35;
@@ -503,48 +501,37 @@
             let rect = cv.boundingRect(approx);
             let asp = rect.width / rect.height;
             if (rect.width >= minBoxW && rect.height >= minBoxH && asp >= 0.65 && asp <= 1.6) {
-              validBoxes.push({
-                x: rect.x / scale,
-                y: rect.y / scale,
-                w: rect.width / scale,
-                h: rect.height / scale
-              });
+              // Extract the 4 true rotated/tilted corner points of this box
+              for (let j = 0; j < 4; j++) {
+                allPoints.push({
+                  x: approx.data32S[j * 2] / scale,
+                  y: approx.data32S[j * 2 + 1] / scale
+                });
+              }
             }
           }
           approx.delete();
         }
 
-        // Deduplicate overlapping borders
-        let deduped = [];
-        validBoxes.sort((a,b) => (b.w * b.h) - (a.w * a.h));
-        validBoxes.forEach(b => {
-          let exists = deduped.some(d => Math.hypot((d.x + d.w/2) - (b.x + b.w/2), (d.y + d.h/2) - (b.y + b.h/2)) < (b.w * 0.35));
-          if (!exists) deduped.push(b);
-        });
-
-        if (deduped.length >= 2) {
-          let minX = Math.min(...deduped.map(b => b.x));
-          let minY = Math.min(...deduped.map(b => b.y));
-          let maxX = Math.max(...deduped.map(b => b.x + b.w));
-          let maxY = Math.max(...deduped.map(b => b.y + b.h));
-
-          let avgBoxW = deduped.reduce((a,b)=>a+b.w, 0) / deduped.length;
-          let avgBoxH = deduped.reduce((a,b)=>a+b.h, 0) / deduped.length;
-
-          // Fail-Safe Extrapolation: If shadows masked bottom rows, project full 3 rows!
-          const expectedTotalH = (avgBoxH * gridRows) + (avgBoxH * 0.105 * (gridRows - 1));
-          if ((maxY - minY) < (avgBoxH * 1.5)) {
-            maxY = Math.min(origH, minY + expectedTotalH);
-          }
+        if (allPoints.length >= 8) {
+          // Find the true 4 tilted/perspective corners of the entire grid
+          // Top-Left: Minimum (x + y)
+          let tl = allPoints.reduce((min, p) => (p.x + p.y < min.x + min.y ? p : min), allPoints[0]);
+          // Bottom-Right: Maximum (x + y)
+          let br = allPoints.reduce((max, p) => (p.x + p.y > max.x + max.y ? p : max), allPoints[0]);
+          // Top-Right: Maximum (x - y)
+          let tr = allPoints.reduce((max, p) => (p.x - p.y > max.x - max.y ? p : max), allPoints[0]);
+          // Bottom-Left: Minimum (x - y)
+          let bl = allPoints.reduce((min, p) => (p.x - p.y < min.x - min.y ? p : min), allPoints[0]);
 
           corners = [
-            { x: minX, y: minY },
-            { x: maxX, y: minY },
-            { x: maxX, y: maxY },
-            { x: minX, y: maxY }
+            { x: tl.x, y: tl.y }, // Pin 0: Top-Left (angled)
+            { x: tr.x, y: tr.y }, // Pin 1: Top-Right (angled)
+            { x: br.x, y: br.y }, // Pin 2: Bottom-Right (angled)
+            { x: bl.x, y: bl.y }  // Pin 3: Bottom-Left (angled)
           ];
 
-          banner.innerText = `✅ Perspective grid aligned to all ${gridCols * gridRows} boxes!`;
+          banner.innerText = `✅ Auto-snapped in 3D perspective! Drag red dots to tweak.`;
           banner.style.background = '#e8f5e9';
           banner.style.color = '#2e7d32';
           return true;
@@ -567,7 +554,6 @@
       if (!loadedImage) return;
       const w = loadedImage.width;
       const h = loadedImage.height;
-      // Default to span full 3-row layout cleanly
       corners = [
         { x: w * 0.14, y: h * 0.08 },
         { x: w * 0.86, y: h * 0.08 },
@@ -627,7 +613,7 @@
       cropCtx.closePath();
       cropCtx.stroke();
 
-      // 2. Interrelated yellow sub-boxes in perspective
+      // 2. Interrelated yellow sub-boxes in true perspective
       cropCtx.strokeStyle = '#ffeb3b';
       cropCtx.lineWidth = Math.max(3, cropCanvas.width * 0.0045);
 
@@ -663,6 +649,7 @@
       });
     }
 
+    // Bilinear perspective interpolation
     function interp(u, v) {
       const [tl, tr, br, bl] = corners;
       return {
