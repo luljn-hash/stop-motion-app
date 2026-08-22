@@ -65,6 +65,27 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.06);
     }
 
+    .toggle-box {
+      background: #fff3e0;
+      border: 1px solid #ffe0b2;
+      padding: 10px 14px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: 10px 0;
+      font-weight: bold;
+      font-size: 0.95rem;
+      color: #e65100;
+    }
+    .toggle-box input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
     .preset-group {
       display: flex;
       flex-wrap: wrap;
@@ -96,8 +117,6 @@
     }
 
     .status-banner {
-      background: #e8f5e9;
-      color: #2e7d32;
       padding: 8px 12px;
       border-radius: 8px;
       font-size: 0.85rem;
@@ -194,7 +213,7 @@
 <body>
 
   <h1>🎬 Smart Stop Motion Studio</h1>
-  <p>Auto-detects squares, auto-snaps grid, and creates animations!</p>
+  <p>Auto-detect squares, auto-snap grid, and export animations!</p>
 
   <!-- Hidden Camera Inputs -->
   <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
@@ -202,8 +221,15 @@
 
   <!-- Step 1: Settings & Capture -->
   <div class="card" id="uploadCard">
+    
+    <!-- Auto-Grid Checkbox Toggle -->
+    <label class="toggle-box">
+      <input type="checkbox" id="autoDetectToggle" checked>
+      <span>✨ Auto-Detect & Snap to Squares</span>
+    </label>
+
     <div style="display: flex; justify-content: space-between; align-items: center;">
-      <span style="font-weight: bold; font-size: 0.95rem;">📐 Grid: <span id="gridSummary">Auto-Detect Enabled</span></span>
+      <span style="font-weight: bold; font-size: 0.95rem;">📐 Grid: <span id="gridSummary">2×3 (6 Frames)</span></span>
       <button class="btn btn-purple btn-sm" onclick="toggleSettings()">⚙️ Customize</button>
     </div>
 
@@ -249,11 +275,11 @@
 
   <!-- Step 2: Interactive Alignment with Auto-Snap -->
   <div class="card" id="adjustCard" style="display:none;">
-    <div class="status-banner" id="snapStatusMsg">✨ Auto-snapping grid to detected squares...</div>
+    <div class="status-banner" id="snapStatusMsg" style="background:#e8f5e9; color:#2e7d32;">✨ Detecting squares...</div>
     
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-      <span style="font-size:0.85rem; font-weight:bold;">🎯 Drag corners to nudge if needed</span>
-      <button class="btn btn-purple btn-sm" onclick="triggerAutoDetect()">⚡ Re-Snap Grid</button>
+      <span style="font-size:0.85rem; font-weight:bold;">🎯 Drag red circles to fine-tune</span>
+      <button class="btn btn-purple btn-sm" onclick="triggerAutoDetect()">⚡ Re-Snap Auto Grid</button>
     </div>
 
     <canvas id="cropCanvas"></canvas>
@@ -325,7 +351,7 @@
 
     function onOpenCvReady() {
       openCvLoaded = true;
-      console.log('OpenCV Engine Active');
+      console.log('OpenCV Engine Loaded');
     }
 
     function toggleSettings() {
@@ -371,7 +397,6 @@
       document.getElementById('gridSummary').innerText = `${currentPresetName} • ${ratioName}`;
     }
 
-    // Dynamic Printable Worksheet
     function prepareAndPrint() {
       const container = document.getElementById('printBoxesContainer');
       container.innerHTML = '';
@@ -420,42 +445,85 @@
       reader.readAsDataURL(file);
     }
 
-    // --- AUTOMATIC PANEL DETECTION & CORNER SNAPPING ---
-    function autoDetectAndSnapGrid() {
-      if (!openCvLoaded || !loadedImage) return false;
+    // --- ENHANCED DETECTION & AUTO-SNAP ENGINE ---
+    function runSmartAutoDetect() {
+      const autoEnabled = document.getElementById('autoDetectToggle').checked;
+      const banner = document.getElementById('snapStatusMsg');
 
-      let src = cv.imread(cropCanvas);
+      if (!autoEnabled) {
+        setManualDefaultCorners();
+        banner.innerText = '✋ Manual mode active. Drag red circles to fit.';
+        banner.style.background = '#e3f2fd';
+        banner.style.color = '#1565c0';
+        return false;
+      }
+
+      if (!openCvLoaded || !loadedImage) {
+        setManualDefaultCorners();
+        banner.innerText = '⏳ Detector still loading. Manual mode active.';
+        return false;
+      }
+
+      // 1. Create a downscaled image for scale-invariant edge & contour detection
+      const maxDim = 800;
+      const origW = loadedImage.width;
+      const origH = loadedImage.height;
+      const scale = Math.min(1.0, maxDim / Math.max(origW, origH));
+      const detW = Math.round(origW * scale);
+      const detH = Math.round(origH * scale);
+
+      const detCanvas = document.createElement('canvas');
+      detCanvas.width = detW;
+      detCanvas.height = detH;
+      const detCtx = detCanvas.getContext('2d');
+      detCtx.drawImage(loadedImage, 0, 0, detW, detH);
+
+      let src = cv.imread(detCanvas);
       let gray = new cv.Mat();
+      let blurred = new cv.Mat();
       let thresh = new cv.Mat();
+      let closed = new cv.Mat();
       let contours = new cv.MatVector();
       let hierarchy = new cv.Mat();
 
       try {
         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
-        cv.GaussianBlur(gray, gray, new cv.Size(5, 5), 0);
-        cv.adaptiveThreshold(gray, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 15, 3);
-        cv.findContours(thresh, contours, hierarchy, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE);
+        cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
 
-        let detected = [];
-        const totalArea = cropCanvas.width * cropCanvas.height;
-        const minArea = totalArea * 0.008;
-        const maxArea = totalArea * 0.65;
+        // Adaptive threshold with kernel calibrated to 800px image
+        cv.adaptiveThreshold(blurred, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 29, 4);
+
+        // Morphological close to connect drawn line gaps
+        let kernel = cv.Mat.ones(3, 3, cv.CV_8U);
+        cv.morphologyEx(thresh, closed, cv.MORPH_CLOSE, kernel);
+        kernel.delete();
+
+        cv.findContours(closed, contours, hierarchy, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE);
+
+        let validBoxes = [];
+        const minArea = (detW * detH) * 0.006;
+        const maxArea = (detW * detH) * 0.50;
 
         for (let i = 0; i < contours.size(); ++i) {
           let cnt = contours.get(i);
-          let approx = new cv.Mat();
-          let peri = cv.arcLength(cnt, true);
-          cv.approxPolyDP(cnt, approx, 0.035 * peri, true);
           let area = cv.contourArea(cnt);
+          if (area < minArea || area > maxArea) continue;
 
-          if (approx.rows === 4 && area > minArea && area < maxArea) {
+          let peri = cv.arcLength(cnt, true);
+          let approx = new cv.Mat();
+          cv.approxPolyDP(cnt, approx, 0.035 * peri, true);
+
+          if (approx.rows === 4 && cv.isContourConvex(approx)) {
             let rect = cv.boundingRect(approx);
             let asp = rect.width / rect.height;
-            if (asp >= 0.5 && asp <= 2.5) {
-              detected.push({
-                x: rect.x, y: rect.y, w: rect.width, h: rect.height,
-                cx: rect.x + rect.width / 2,
-                cy: rect.y + rect.height / 2,
+            if (asp >= 0.55 && asp <= 2.2) {
+              validBoxes.push({
+                x: rect.x / scale,
+                y: rect.y / scale,
+                w: rect.width / scale,
+                h: rect.height / scale,
+                cx: (rect.x + rect.width / 2) / scale,
+                cy: (rect.y + rect.height / 2) / scale,
                 area: area
               });
             }
@@ -463,43 +531,28 @@
           approx.delete();
         }
 
-        // Filter overlapping duplicate contours
-        let uniqueBoxes = [];
-        detected.sort((a,b) => b.area - a.area);
-        detected.forEach(box => {
-          let isNested = uniqueBoxes.some(u => 
-            Math.abs(u.cx - box.cx) < (box.w * 0.4) && Math.abs(u.cy - box.cy) < (box.h * 0.4)
-          );
-          if (!isNested) uniqueBoxes.push(box);
+        // Deduplicate overlapping nested contours
+        let deduped = [];
+        validBoxes.sort((a,b) => b.area - a.area);
+        validBoxes.forEach(b => {
+          let overlaps = deduped.some(d => Math.abs(d.cx - b.cx) < (b.w * 0.4) && Math.abs(d.cy - b.cy) < (b.h * 0.4));
+          if (!overlaps) deduped.push(b);
         });
 
-        // If boxes found, cluster rows & columns automatically
-        if (uniqueBoxes.length >= 2) {
-          let xs = uniqueBoxes.map(b => b.cx).sort((a,b) => a - b);
-          let ys = uniqueBoxes.map(b => b.cy).sort((a,b) => a - b);
+        // If 2 or more panels found, cluster into rows & columns
+        if (deduped.length >= 2) {
+          let xs = deduped.map(b => b.cx).sort((a,b) => a - b);
+          let ys = deduped.map(b => b.cy).sort((a,b) => a - b);
+          let avgW = deduped.reduce((a,b)=>a+b.w, 0) / deduped.length;
+          let avgH = deduped.reduce((a,b)=>a+b.h, 0) / deduped.length;
 
-          let xClusters = clusterCoordinates(xs, cropCanvas.width * 0.15);
-          let yClusters = clusterCoordinates(ys, cropCanvas.height * 0.12);
+          let colClusters = clusterCenters(xs, avgW * 0.6);
+          let rowClusters = clusterCenters(ys, avgH * 0.6);
 
-          let detectedCols = Math.max(1, Math.min(4, xClusters.length));
-          let detectedRows = Math.max(1, Math.min(5, yClusters.length));
+          let detectedCols = Math.max(1, Math.min(4, colClusters.length));
+          let detectedRows = Math.max(1, Math.min(5, rowClusters.length));
 
-          // Snap corners to the bounding perimeter of detected panels
-          let minX = Math.min(...uniqueBoxes.map(b => b.x));
-          let minY = Math.min(...uniqueBoxes.map(b => b.y));
-          let maxX = Math.max(...uniqueBoxes.map(b => b.x + b.w));
-          let maxY = Math.max(...uniqueBoxes.map(b => b.y + b.h));
-
-          const padX = (maxX - minX) * 0.02;
-          const padY = (maxY - minY) * 0.02;
-
-          corners = [
-            { x: Math.max(0, minX - padX), y: Math.max(0, minY - padY) },
-            { x: Math.min(cropCanvas.width, maxX + padX), y: Math.max(0, minY - padY) },
-            { x: Math.min(cropCanvas.width, maxX + padX), y: Math.min(cropCanvas.height, maxY + padY) },
-            { x: Math.max(0, minX - padX), y: Math.min(cropCanvas.height, maxY + padY) }
-          ];
-
+          // Set grid
           gridCols = detectedCols;
           gridRows = detectedRows;
           document.getElementById('colsInput').value = detectedCols;
@@ -507,29 +560,43 @@
           currentPresetName = `${gridCols}×${gridRows} (${gridCols * gridRows} Frames)`;
           updateGridSummary();
 
-          document.getElementById('snapStatusMsg').innerText = `✨ Auto-detected ${uniqueBoxes.length} panels (${detectedCols}×${detectedRows}) & snapped grid!`;
+          // Snap outer 4 corners tightly around detected boxes
+          let minX = Math.min(...deduped.map(b => b.x));
+          let minY = Math.min(...deduped.map(b => b.y));
+          let maxX = Math.max(...deduped.map(b => b.x + b.w));
+          let maxY = Math.max(...deduped.map(b => b.y + b.h));
+
+          const padX = (maxX - minX) * 0.02;
+          const padY = (maxY - minY) * 0.02;
+
+          corners = [
+            { x: Math.max(0, minX - padX), y: Math.max(0, minY - padY) },
+            { x: Math.min(origW, maxX + padX), y: Math.max(0, minY - padY) },
+            { x: Math.min(origW, maxX + padX), y: Math.min(origH, maxY + padY) },
+            { x: Math.max(0, minX - padX), y: Math.min(origH, maxY + padY) }
+          ];
+
+          banner.innerText = `✅ Auto-detected ${deduped.length} squares (${detectedCols}×${detectedRows}) & snapped grid!`;
+          banner.style.background = '#e8f5e9';
+          banner.style.color = '#2e7d32';
           return true;
         }
+
       } catch (err) {
-        console.warn("Detection note:", err);
+        console.warn("Detection error:", err);
       } finally {
-        src.delete(); gray.delete(); thresh.delete(); contours.delete(); hierarchy.delete();
+        src.delete(); gray.delete(); blurred.delete(); thresh.delete(); closed.delete(); contours.delete(); hierarchy.delete();
       }
 
-      // Default fallback snap
-      const w = cropCanvas.width;
-      const h = cropCanvas.height;
-      corners = [
-        { x: w * 0.08, y: h * 0.08 },
-        { x: w * 0.92, y: h * 0.08 },
-        { x: w * 0.92, y: h * 0.92 },
-        { x: w * 0.08, y: h * 0.92 }
-      ];
-      document.getElementById('snapStatusMsg').innerText = `🎯 Default grid aligned. Drag circles to fine-tune.`;
+      // If no distinct panels found, fall back to standard placement
+      setManualDefaultCorners();
+      banner.innerText = '⚠️ Could not clearly isolate squares. Drag the red circles to fit.';
+      banner.style.background = '#fff3e0';
+      banner.style.color = '#e65100';
       return false;
     }
 
-    function clusterCoordinates(arr, threshold) {
+    function clusterCenters(arr, threshold) {
       if (arr.length === 0) return [];
       let clusters = [[arr[0]]];
       for (let i = 1; i < arr.length; i++) {
@@ -544,8 +611,20 @@
       return clusters;
     }
 
+    function setManualDefaultCorners() {
+      if (!loadedImage) return;
+      const w = loadedImage.width;
+      const h = loadedImage.height;
+      corners = [
+        { x: w * 0.08, y: h * 0.08 },
+        { x: w * 0.92, y: h * 0.08 },
+        { x: w * 0.92, y: h * 0.92 },
+        { x: w * 0.08, y: h * 0.92 }
+      ];
+    }
+
     function triggerAutoDetect() {
-      autoDetectAndSnapGrid();
+      runSmartAutoDetect();
       drawAdjuster();
     }
 
@@ -559,7 +638,7 @@
       cropCanvas.height = loadedImage.height;
 
       // Run Auto-Detect & Snap
-      autoDetectAndSnapGrid();
+      runSmartAutoDetect();
 
       document.getElementById('confirmCropBtn').innerText = isAppending ? '➕ Append Page Frames' : '✨ Generate Stop Motion';
       drawAdjuster();
@@ -569,7 +648,7 @@
       cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
       cropCtx.drawImage(loadedImage, 0, 0);
 
-      // Outer quad
+      // Outer blue quad
       cropCtx.strokeStyle = '#2196f3';
       cropCtx.lineWidth = Math.max(4, cropCanvas.width * 0.005);
       cropCtx.beginPath();
@@ -580,9 +659,9 @@
       cropCtx.closePath();
       cropCtx.stroke();
 
-      // Sub-boxes
-      cropCtx.strokeStyle = 'rgba(255, 235, 59, 0.9)';
-      cropCtx.lineWidth = Math.max(2, cropCanvas.width * 0.003);
+      // Yellow sub-boxes preview
+      cropCtx.strokeStyle = 'rgba(255, 235, 59, 0.95)';
+      cropCtx.lineWidth = Math.max(2, cropCanvas.width * 0.0035);
 
       const colW = 1.0 / gridCols;
       const rowH = 1.0 / gridRows;
@@ -606,8 +685,8 @@
         }
       }
 
-      // Corner handles
-      const handleRadius = Math.max(16, cropCanvas.width * 0.025);
+      // Red/Orange corner grab handles
+      const handleRadius = Math.max(18, cropCanvas.width * 0.028);
       corners.forEach(pt => {
         cropCtx.fillStyle = '#ff5722';
         cropCtx.beginPath();
@@ -627,7 +706,7 @@
       };
     }
 
-    // Pointer Interaction
+    // Touch & Pointer Dragging
     function getCanvasCoords(e) {
       const rect = cropCanvas.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -640,7 +719,7 @@
 
     function onPointerDown(e) {
       const pos = getCanvasCoords(e);
-      const touchDist = Math.max(35, cropCanvas.width * 0.06);
+      const touchDist = Math.max(38, cropCanvas.width * 0.07);
       activeCorner = null;
       corners.forEach((pt, idx) => {
         if (Math.hypot(pt.x - pos.x, pt.y - pos.y) < touchDist) activeCorner = idx;
