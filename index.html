@@ -209,7 +209,7 @@
 <body>
 
   <h1>🎬 Smart Stop Motion Studio</h1>
-  <p>Auto-snaps interconnected perspective grid & exports animations!</p>
+  <p>Interconnected perspective grid with automatic snap!</p>
 
   <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
   <input type="file" id="appendCameraInput" accept="image/*" capture="environment" style="display:none;">
@@ -435,14 +435,14 @@
       reader.readAsDataURL(file);
     }
 
-    // --- AUTO-SNAP THE 4 CORNER DOTS TO THE BOX GRID ---
+    // --- FAIL-SAFE AUTO-SNAP ANCHORED TO GLOBAL EXTENTS ---
     function runSmartAutoDetect() {
       const autoEnabled = document.getElementById('autoDetectToggle').checked;
       const banner = document.getElementById('snapStatusMsg');
 
       if (!autoEnabled) {
         setManualDefaultCorners();
-        banner.innerText = '✋ Manual mode. Drag the 4 red dots to the corners of your boxes.';
+        banner.innerText = '✋ Manual mode. Drag red dots to fit your boxes.';
         banner.style.background = '#e3f2fd';
         banner.style.color = '#1565c0';
         return false;
@@ -488,7 +488,7 @@
 
         let validBoxes = [];
         const totalArea = detW * detH;
-        const minArea = totalArea * 0.02;
+        const minArea = totalArea * 0.015;
         const maxArea = totalArea * 0.35;
 
         for (let i = 0; i < contours.size(); ++i) {
@@ -503,14 +503,12 @@
           if (approx.rows === 4 && cv.isContourConvex(approx)) {
             let rect = cv.boundingRect(approx);
             let asp = rect.width / rect.height;
-            if (asp >= 0.70 && asp <= 2.2) {
+            if (asp >= 0.65 && asp <= 2.2) {
               validBoxes.push({
                 x: rect.x / scale,
                 y: rect.y / scale,
                 w: rect.width / scale,
                 h: rect.height / scale,
-                cx: (rect.x + rect.width / 2) / scale,
-                cy: (rect.y + rect.height / 2) / scale,
                 area: area
               });
             }
@@ -518,54 +516,22 @@
           approx.delete();
         }
 
-        let deduped = [];
-        validBoxes.sort((a,b) => b.area - a.area);
-        validBoxes.forEach(b => {
-          let overlaps = deduped.some(d => Math.hypot(d.cx - b.cx, d.cy - b.cy) < (b.w * 0.4));
-          if (!overlaps) deduped.push(b);
-        });
+        if (validBoxes.length >= 2) {
+          // Global outer bounds of ALL detected boxes
+          let minX = Math.min(...validBoxes.map(b => b.x));
+          let minY = Math.min(...validBoxes.map(b => b.y));
+          let maxX = Math.max(...validBoxes.map(b => b.x + b.w));
+          let maxY = Math.max(...validBoxes.map(b => b.y + b.h));
 
-        if (deduped.length >= 2) {
-          // Sort into rows
-          deduped.sort((a, b) => a.y - b.y);
-          let rowGroups = [];
-          let currentRow = [deduped[0]];
-
-          for (let i = 1; i < deduped.length; i++) {
-            if (Math.abs(deduped[i].y - currentRow[0].y) < (deduped[i].h * 0.5)) {
-              currentRow.push(deduped[i]);
-            } else {
-              rowGroups.push(currentRow);
-              currentRow = [deduped[i]];
-            }
-          }
-          rowGroups.push(currentRow);
-          rowGroups.forEach(r => r.sort((a, b) => a.x - b.x));
-
-          let numCols = Math.max(...rowGroups.map(r => r.length));
-          let numRows = rowGroups.length;
-
-          gridCols = numCols;
-          gridRows = numRows;
-          document.getElementById('colsInput').value = numCols;
-          document.getElementById('rowsInput').value = numRows;
-          currentPresetName = `${gridCols}×${gridRows} (${gridCols * gridRows} Frames)`;
-          updateGridSummary();
-
-          // Snap the 4 Master Red Dots to the 4 outer box vertices
-          const firstBox = rowGroups[0][0];
-          const topRowLast = rowGroups[0][rowGroups[0].length - 1];
-          const botRowLast = rowGroups[rowGroups.length - 1][rowGroups[rowGroups.length - 1].length - 1];
-          const botRowFirst = rowGroups[rowGroups.length - 1][0];
-
+          // Set 4 master corner pins
           corners = [
-            { x: firstBox.x, y: firstBox.y },
-            { x: topRowLast.x + topRowLast.w, y: topRowLast.y },
-            { x: botRowLast.x + botRowLast.w, y: botRowLast.y + botRowLast.h },
-            { x: botRowFirst.x, y: botRowFirst.y + botRowFirst.h }
+            { x: minX, y: minY }, // Pin 0: Top-Left (Box 1)
+            { x: maxX, y: minY }, // Pin 1: Top-Right (Box 2)
+            { x: maxX, y: maxY }, // Pin 2: Bottom-Right (Box 6)
+            { x: minX, y: maxY }  // Pin 3: Bottom-Left (Box 5)
           ];
 
-          banner.innerText = `✅ Snapped perspective grid to ${gridCols * gridRows} boxes! Drag red dots to fine-tune.`;
+          banner.innerText = `✅ Perspective grid aligned! Drag red dots to fine-tune.`;
           banner.style.background = '#e8f5e9';
           banner.style.color = '#2e7d32';
           return true;
@@ -616,9 +582,8 @@
       drawAdjuster();
     }
 
-    // --- MATHEMATICAL PERSPECTIVE GRID WITH EXACT PHYSICAL 8mm GAPS ---
+    // --- EXACT PHYSICAL 8mm TEMPLATE GAP RATIOS ---
     function getCellBounds(c, r) {
-      // Relative gap ratio based on physical template (8mm gap / 76mm box = ~0.105)
       const gapRatio = 0.105;
 
       const totalW = gridCols + (gridCols - 1) * gapRatio;
@@ -637,7 +602,7 @@
       cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
       cropCtx.drawImage(loadedImage, 0, 0);
 
-      // 1. Draw outer connecting blue quad
+      // 1. Draw outer connecting quad (blue border)
       cropCtx.strokeStyle = 'rgba(33, 150, 243, 0.7)';
       cropCtx.lineWidth = Math.max(3, cropCanvas.width * 0.004);
       cropCtx.beginPath();
@@ -671,7 +636,7 @@
         }
       }
 
-      // 3. Draw the 4 Red/Orange Corner Handles
+      // 3. Draw the 4 Red Corner Handles
       const handleRadius = Math.max(18, cropCanvas.width * 0.028);
       corners.forEach(pt => {
         cropCtx.fillStyle = '#ff5722';
@@ -693,7 +658,7 @@
       };
     }
 
-    // Touch & Pointer Dragging
+    // Touch & Drag Handling
     function getCanvasCoords(e) {
       const rect = cropCanvas.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -722,7 +687,7 @@
         x: Math.max(0, Math.min(cropCanvas.width, pos.x)),
         y: Math.max(0, Math.min(cropCanvas.height, pos.y))
       };
-      drawAdjuster(); // Dynamically warps all 6 boxes live!
+      drawAdjuster(); // Smoothly warps all 6 boxes live!
     }
 
     function onPointerUp() { activeCorner = null; }
