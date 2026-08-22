@@ -197,44 +197,54 @@
       margin-top: 12px;
     }
 
-    /* --- IMPRESIÓN CORREGIDA: Sin cortes, márgenes seguros de 15mm --- */
+    /* --- REGLAS DE IMPRESIÓN CORREGIDAS (1 SOLA PÁGINA) --- */
     @media print {
       @page {
         size: portrait;
-        margin: 15mm;
+        margin: 10mm;
       }
-      body {
-        margin: 0;
-        padding: 0;
-        background: #ffffff;
+      html, body {
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        overflow: hidden !important;
       }
-      body * {
+      /* Ocultar interfaz web */
+      body > *:not(#printableGrid) {
         display: none !important;
       }
-      #printableGrid, #printableGrid * {
-        display: block !important;
-      }
+      /* Contenedor imprimible principal */
       #printableGrid {
         display: flex !important;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        width: 100%;
-        min-height: 85vh;
-        margin: 0 auto;
-        box-sizing: border-box;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100% !important;
+        height: 100vh !important;
+        box-sizing: border-box !important;
+        page-break-inside: avoid !important;
+        page-break-after: avoid !important;
+        break-inside: avoid !important;
       }
+      /* Cuadrícula CSS real para impresión */
       .print-container {
         display: grid !important;
-        margin: auto;
-        justify-content: center;
-        align-content: center;
-        box-sizing: border-box;
+        margin: auto !important;
+        justify-content: center !important;
+        align-content: center !important;
+        box-sizing: border-box !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
       .grid-box {
-        box-sizing: border-box;
+        display: block !important;
+        box-sizing: border-box !important;
         border-radius: 4px;
-        background: #ffffff;
+        background: #ffffff !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
     }
     #printableGrid { display: none; }
@@ -293,7 +303,6 @@
         <input type="number" id="rowsInput" min="1" max="6" value="3" onchange="onCustomGridChange()">
       </div>
 
-      <!-- Control de Grosor de Borde Imprimible -->
       <div class="settings-row">
         <label>Grosor del Borde Impreso:</label>
         <div style="display:flex; align-items:center; gap:8px;">
@@ -304,10 +313,9 @@
     </div>
 
     <div style="margin-top: 12px;">
-      <button class="btn btn-outline" onclick="prepareAndPrint()">🖨️ Imprimir Plantilla</button>
+      <button class="btn btn-outline" onclick="prepareAndPrint()">🖨️ Imprimir Plantilla (1 Página)</button>
     </div>
     
-    <!-- Botones: Tomar Foto o Subir de Galería -->
     <div style="display: flex; gap: 8px; justify-content: center; margin-top: 10px;">
       <label for="cameraInput" class="btn btn-green" style="flex: 1; padding: 12px 10px;">📷 Tomar Foto</label>
       <label for="galleryInput" class="btn btn-blue" style="flex: 1; padding: 12px 10px;">🖼️ Galería / Fotos</label>
@@ -336,7 +344,7 @@
     </div>
   </div>
 
-  <!-- Paso 3: Reproductor y Exportación Limpia -->
+  <!-- Paso 3: Reproductor y Exportación -->
   <div class="card" id="playerCard" style="display:none;">
     <canvas id="animationCanvas"></canvas>
     
@@ -352,7 +360,6 @@
     <div class="frame-strip" id="frameStrip"></div>
 
     <div class="action-group">
-      <!-- Añadir más páginas: Foto o Galería -->
       <div style="display: flex; gap: 8px; justify-content: center;">
         <label for="appendCameraInput" class="btn btn-purple" style="flex: 1;">📷 Otra Foto</label>
         <label for="appendGalleryInput" class="btn btn-blue" style="flex: 1;">🖼️ Otra de Galería</label>
@@ -459,15 +466,15 @@
       document.getElementById('gridSummary').innerText = `${currentPresetName} • ${ratioName}`;
     }
 
-    // --- IMPRESIÓN OPTIMIZADA: Escala exacta para evitar recortes ---
+    // --- CÁLCULO PRECISO PARA 1 SOLA HOJA CARTA / A4 ---
     function prepareAndPrint() {
       const container = document.getElementById('printBoxesContainer');
       container.innerHTML = '';
 
-      // Área máxima imprimible segura en mm (A4 y Carta: ~170mm ancho x 230mm alto)
+      // Área segura para Carta y A4 (Ancho máx: 170mm, Alto máx: 230mm)
       const maxPrintW = 170;
       const maxPrintH = 225;
-      const gapMm = gridRows > 3 || gridCols > 2 ? 10 : 14;
+      const gapMm = gridRows >= 4 || gridCols >= 3 ? 8 : 12;
 
       const maxWFromCols = (maxPrintW - (gridCols - 1) * gapMm) / gridCols;
       const maxHFromRows = (maxPrintH - (gridRows - 1) * gapMm) / gridRows;
@@ -500,7 +507,7 @@
       window.print();
     }
 
-    // Eventos para Cámara y Galería
+    // Eventos Cámara y Galería
     document.getElementById('cameraInput').addEventListener('change', e => { isAppending = false; loadImageFile(e.target.files[0]); });
     document.getElementById('galleryInput').addEventListener('change', e => { isAppending = false; loadImageFile(e.target.files[0]); });
     document.getElementById('appendCameraInput').addEventListener('change', e => { isAppending = true; loadImageFile(e.target.files[0]); });
@@ -865,7 +872,7 @@
     window.addEventListener('touchmove', onPointerMove, { passive: false });
     window.addEventListener('touchend', onPointerUp);
 
-    // --- EXTRACCIÓN LIMPIA DIRECTA DESDE LA FOTO ORIGINAL ---
+    // --- EXTRACCIÓN LIMPIA ---
     function cropAndAnimate() {
       updateDimensions();
       const newPageFrames = [];
@@ -1145,8 +1152,3 @@
         }
       });
     }
-
-    updateDimensions();
-  </script>
-</body>
-</html>
