@@ -3,10 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Post-it Stop Motion Studio</title>
+  <title>Stop Motion Studio (Widescreen & Post-it)</title>
   <!-- GIF creation library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.3.2/gifshot.min.js"></script>
-  <!-- OpenCV.js for dewarping & perspective detection -->
+  <!-- ZIP packing for JPGs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- OpenCV.js for dewarping & perspective transform -->
   <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
 
   <style>
@@ -59,7 +61,7 @@
       border-radius: 16px;
       padding: 14px;
       margin: 10px auto;
-      max-width: 480px;
+      max-width: 500px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.06);
     }
 
@@ -90,6 +92,7 @@
       border-radius: 8px;
       border: 1px solid #ccc;
       font-size: 0.9rem;
+      background: #fff;
     }
 
     #cropCanvas {
@@ -102,12 +105,11 @@
     
     #animationCanvas {
       width: 100%;
-      max-width: 300px;
-      aspect-ratio: 1 / 1;
+      max-width: 360px;
       background: #eee;
       border-radius: 12px;
       border: 3px solid #333;
-      object-fit: cover;
+      object-fit: contain;
     }
 
     .frame-strip {
@@ -122,9 +124,8 @@
       flex-shrink: 0;
     }
     .frame-thumb {
-      width: 55px;
       height: 55px;
-      border-radius: 8px;
+      border-radius: 6px;
       border: 2px solid #ddd;
       object-fit: cover;
       display: block;
@@ -182,8 +183,8 @@
 </head>
 <body>
 
-  <h1>🎬 Post-it Stop Motion</h1>
-  <p>Stick your Post-its, scan pages, and create movies!</p>
+  <h1>🎬 Stop Motion Studio</h1>
+  <p>Animate square Post-its or 1:1.85 cinematic widescreen rectangles!</p>
 
   <!-- Hidden Camera Inputs -->
   <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
@@ -192,7 +193,7 @@
   <!-- Step 1: Settings & Capture -->
   <div class="card" id="uploadCard">
     <div style="display: flex; justify-content: space-between; align-items: center;">
-      <span style="font-weight: bold; font-size: 0.95rem;">📐 Grid: <span id="gridSummary">2×3 (6 Frames)</span></span>
+      <span style="font-weight: bold; font-size: 0.95rem;">📐 Setup: <span id="gridSummary">2×3 (6 Frames) • 1:1.85 Cinema</span></span>
       <button class="btn btn-purple btn-sm" onclick="toggleSettings()">⚙️ Customize</button>
     </div>
 
@@ -200,12 +201,24 @@
     <div class="settings-panel" id="settingsPanel" style="display:none;">
       <div style="font-weight:bold; margin-bottom:6px;">⚡ Quick Presets:</div>
       <div class="preset-group">
-        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 2, 76, '4 Frames (2×2)')">4 Frames (2×2)</button>
-        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 3, 76, '6 Frames (2×3)')">6 Frames (2×3)</button>
-        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 4, 60, '8 Frames (2×4)')">8 Frames (2×4)</button>
-        <button class="btn btn-outline btn-sm" onclick="setPreset(3, 3, 50, '9 Mini (3×3)')">9 Mini (3×3)</button>
+        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 3, 1.85, '6 Cinema (1.85:1)')">🎞️ 6 Cinema (1.85:1)</button>
+        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 4, 1.85, '8 Cinema (1.85:1)')">🎞️ 8 Cinema (1.85:1)</button>
+        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 3, 1.0, '6 Square Post-its')">🟨 6 Square Post-it</button>
+        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 2, 1.0, '4 Square Post-its')">🟨 4 Square Post-it</button>
       </div>
       <hr style="border:0; border-top:1px solid #ddd; margin:10px 0;">
+      
+      <!-- Aspect Ratio Dropdown -->
+      <div class="settings-row">
+        <label><strong>Frame Ratio:</strong></label>
+        <select id="ratioSelect" onchange="onCustomGridChange()">
+          <option value="1.85" selected>1.85:1 Cinematic Widescreen</option>
+          <option value="1.777">16:9 Widescreen (Video)</option>
+          <option value="1.333">4:3 Standard Frame</option>
+          <option value="1.0">1:1 Square (Post-it)</option>
+        </select>
+      </div>
+
       <div class="settings-row">
         <label>Columns (Horizontal):</label>
         <input type="number" id="colsInput" min="1" max="4" value="2" onchange="onCustomGridChange()">
@@ -214,18 +227,10 @@
         <label>Rows (Vertical):</label>
         <input type="number" id="rowsInput" min="1" max="5" value="3" onchange="onCustomGridChange()">
       </div>
-      <div class="settings-row">
-        <label>Post-it Size:</label>
-        <select id="sizeSelect" onchange="onCustomGridChange()">
-          <option value="76">Standard 3×3" (76 mm)</option>
-          <option value="50">Mini 2×2" (50 mm)</option>
-          <option value="60">Compact (60 mm)</option>
-        </select>
-      </div>
     </div>
 
     <div style="margin-top: 12px;">
-      <button class="btn btn-outline" onclick="prepareAndPrint()">🖨️ Print Worksheet</button>
+      <button class="btn btn-outline" onclick="prepareAndPrint()">🖨️ Print Matching Worksheet</button>
     </div>
     
     <div style="margin-top: 8px;">
@@ -235,7 +240,7 @@
 
   <!-- Step 2: Interactive 4-Corner Alignment -->
   <div class="card" id="adjustCard" style="display:none;">
-    <h3 style="margin:4px 0 8px;">🎯 Drag 4 corners to fit the grid</h3>
+    <h3 style="margin:4px 0 8px;">🎯 Drag 4 corners to fit your sheet</h3>
     <canvas id="cropCanvas"></canvas>
     <div style="margin-top: 10px;">
       <button class="btn btn-blue" id="confirmCropBtn" onclick="cropAndAnimate()">✨ Process Page</button>
@@ -245,7 +250,7 @@
 
   <!-- Step 3: Stop Motion Player -->
   <div class="card" id="playerCard" style="display:none;">
-    <canvas id="animationCanvas" width="500" height="500"></canvas>
+    <canvas id="animationCanvas"></canvas>
     
     <div class="controls">
       <button class="btn btn-blue" id="playBtn" onclick="togglePlay()">⏸️ Pause</button>
@@ -253,27 +258,21 @@
       <input type="range" id="fpsSlider" min="2" max="15" value="6" oninput="updateFps(this.value)">
     </div>
 
-    <!-- Thumbnails & Total Count -->
     <div style="font-size:0.85rem; color:#666; margin-top:8px; font-weight:bold;">
       🎞️ Total Frames: <span id="totalFramesCount">0</span>
     </div>
     <div class="frame-strip" id="frameStrip"></div>
 
-    <!-- Multi-page & Export Action Buttons -->
+    <!-- Action Buttons -->
     <div class="action-group">
-      <!-- 1. Add another page button -->
       <label for="appendCameraInput" class="btn btn-purple" style="font-size:1rem;">➕ Add Another Page (+Frames)</label>
-
-      <!-- 2. Share to WhatsApp / Social -->
-      <button class="btn btn-wa" onclick="shareVideoOrGif('whatsapp')">💬 Share on WhatsApp</button>
-
-      <!-- 3. Export Video & GIF -->
+      <button class="btn btn-wa" onclick="shareVideoOrGif()">💬 Share on WhatsApp</button>
       <div style="display:flex; justify-content:center; gap:4px;">
         <button class="btn btn-blue" style="flex:1;" onclick="exportVideoFile()">🎥 Save Video</button>
         <button class="btn btn-green" style="flex:1;" onclick="exportGifFile()">💾 Save GIF</button>
       </div>
-
-      <button class="btn btn-outline btn-sm" onclick="resetAll()" style="margin-top:6px;">🗑️ Start Over (New Animation)</button>
+      <button class="btn btn-outline" style="border-color:#ff5722; color:#ff5722;" onclick="exportJpgZip()">🖼️ Download Frames as JPG (.zip)</button>
+      <button class="btn btn-outline btn-sm" onclick="resetAll()" style="margin-top:6px;">🗑️ Start Over</button>
     </div>
 
     <div id="exportStatus" style="font-size: 0.85rem; margin-top: 8px; color: #555;"></div>
@@ -281,23 +280,27 @@
 
   <!-- Printable Worksheet Container -->
   <div id="printableGrid">
-    <div class="print-title" id="printTitle">Stick Post-it notes inside ⬇️</div>
+    <div class="print-title" id="printTitle">Draw inside the frames ⬇️</div>
     <div class="print-container" id="printBoxesContainer"></div>
   </div>
 
   <script>
-    // Grid Setup
+    // Grid & Ratio Setup
     let gridCols = 2;
     let gridRows = 3;
-    let boxSizeMm = 76;
+    let aspectRatio = 1.85; // 1.85:1 Cinema default
     let currentPresetName = '2×3 (6 Frames)';
 
-    // Images & Frames State
+    // Computed Output Dimensions
+    let outWidth = 555;
+    let outHeight = 300;
+
+    // State
     let loadedImage = null;
     let isAppending = false;
     let corners = [];
     let activeCorner = null;
-    let allFrames = []; // Holds all cumulative frames
+    let allFrames = [];
     let currentFrameIdx = 0;
     let isPlaying = false;
     let fps = 6;
@@ -307,7 +310,7 @@
     const cropCtx = cropCanvas.getContext('2d');
 
     function onOpenCvReady() {
-      console.log('OpenCV loaded successfully');
+      console.log('OpenCV loaded');
     }
 
     function toggleSettings() {
@@ -315,14 +318,25 @@
       panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
     }
 
-    function setPreset(cols, rows, size, name) {
+    function updateDimensions() {
+      if (aspectRatio >= 1) {
+        outWidth = 555;
+        outHeight = Math.round(555 / aspectRatio);
+      } else {
+        outHeight = 555;
+        outWidth = Math.round(555 * aspectRatio);
+      }
+    }
+
+    function setPreset(cols, rows, ratio, name) {
       gridCols = cols;
       gridRows = rows;
-      boxSizeMm = size;
+      aspectRatio = ratio;
       currentPresetName = name;
       document.getElementById('colsInput').value = cols;
       document.getElementById('rowsInput').value = rows;
-      document.getElementById('sizeSelect').value = size;
+      document.getElementById('ratioSelect').value = String(ratio);
+      updateDimensions();
       updateGridSummary();
       if (loadedImage) drawAdjuster();
     }
@@ -330,38 +344,51 @@
     function onCustomGridChange() {
       gridCols = Math.max(1, Math.min(5, parseInt(document.getElementById('colsInput').value) || 2));
       gridRows = Math.max(1, Math.min(6, parseInt(document.getElementById('rowsInput').value) || 3));
-      boxSizeMm = parseInt(document.getElementById('sizeSelect').value) || 76;
+      aspectRatio = parseFloat(document.getElementById('ratioSelect').value) || 1.85;
       currentPresetName = `${gridCols}×${gridRows} (${gridCols * gridRows} Frames)`;
+      updateDimensions();
       updateGridSummary();
       if (loadedImage) drawAdjuster();
     }
 
     function updateGridSummary() {
-      document.getElementById('gridSummary').innerText = `${currentPresetName} • ${boxSizeMm}mm`;
+      const ratioName = aspectRatio === 1.85 ? '1:1.85 Cinema' : (aspectRatio === 1.0 ? '1:1 Square' : `${aspectRatio}:1`);
+      document.getElementById('gridSummary').innerText = `${currentPresetName} • ${ratioName}`;
     }
 
-    // Dynamic Worksheet Printing
+    // Dynamic Printable Worksheet
     function prepareAndPrint() {
       const container = document.getElementById('printBoxesContainer');
       container.innerHTML = '';
-      container.style.gridTemplateColumns = `repeat(${gridCols}, ${boxSizeMm}mm)`;
-      container.style.gridTemplateRows = `repeat(${gridRows}, ${boxSizeMm}mm)`;
+      
+      // Calculate box physical dimensions in mm
+      let boxW = 80;
+      let boxH = Math.round(80 / aspectRatio);
+
+      if (aspectRatio === 1.0) {
+        boxW = 76;
+        boxH = 76;
+      }
+
+      container.style.gridTemplateColumns = `repeat(${gridCols}, ${boxW}mm)`;
+      container.style.gridTemplateRows = `repeat(${gridRows}, ${boxH}mm)`;
 
       const totalBoxes = gridCols * gridRows;
-      document.getElementById('printTitle').innerText = `Stick ${totalBoxes} Post-it notes (${boxSizeMm}×${boxSizeMm}mm) inside ⬇️`;
+      const ratioLabel = aspectRatio === 1.85 ? '1:1.85 Cinematic' : `${boxW}×${boxH}mm`;
+      document.getElementById('printTitle').innerText = `Draw ${totalBoxes} Frames (${ratioLabel}) inside the boxes ⬇️`;
 
       for (let i = 1; i <= totalBoxes; i++) {
         const box = document.createElement('div');
         box.className = 'grid-box';
-        box.style.width = `${boxSizeMm}mm`;
-        box.style.height = `${boxSizeMm}mm`;
-        box.innerHTML = `<span class="grid-number">${i}</span><span class="grid-hint">${boxSizeMm}×${boxSizeMm}mm</span>`;
+        box.style.width = `${boxW}mm`;
+        box.style.height = `${boxH}mm`;
+        box.innerHTML = `<span class="grid-number">${i}</span><span class="grid-hint">${boxW}×${boxH}mm</span>`;
         container.appendChild(box);
       }
       window.print();
     }
 
-    // Image Handlers (First Page vs. Appending Subsequent Pages)
+    // Camera Handlers
     document.getElementById('cameraInput').addEventListener('change', function(e) {
       isAppending = false;
       loadImageFile(e.target.files[0]);
@@ -409,7 +436,7 @@
       cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
       cropCtx.drawImage(loadedImage, 0, 0);
 
-      // Outer quadrilateral
+      // Outer quad
       cropCtx.strokeStyle = '#2196f3';
       cropCtx.lineWidth = Math.max(4, cropCanvas.width * 0.005);
       cropCtx.beginPath();
@@ -426,8 +453,8 @@
 
       const colW = 1.0 / gridCols;
       const rowH = 1.0 / gridRows;
-      const padU = colW * 0.05;
-      const padV = rowH * 0.05;
+      const padU = colW * 0.04;
+      const padV = rowH * 0.04;
 
       for (let r = 0; r < gridRows; r++) {
         for (let c = 0; c < gridCols; c++) {
@@ -446,7 +473,7 @@
         }
       }
 
-      // Corner grab handles
+      // Corner handles
       const handleRadius = Math.max(16, cropCanvas.width * 0.025);
       corners.forEach(pt => {
         cropCtx.fillStyle = '#ff5722';
@@ -467,7 +494,7 @@
       };
     }
 
-    // Touch & Pointer Dragging
+    // Touch & Mouse Dragging
     function getCanvasCoords(e) {
       const rect = cropCanvas.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -508,15 +535,16 @@
     window.addEventListener('touchmove', onPointerMove, { passive: false });
     window.addEventListener('touchend', onPointerUp);
 
-    // Dewarp & Extract
+    // Dewarp & Extract to (outWidth x outHeight)
     function cropAndAnimate() {
+      updateDimensions();
       const newPageFrames = [];
       const srcMat = cv.imread(cropCanvas);
 
       const colW = 1.0 / gridCols;
       const rowH = 1.0 / gridRows;
-      const padU = colW * 0.05;
-      const padV = rowH * 0.05;
+      const padU = colW * 0.04;
+      const padV = rowH * 0.04;
 
       for (let r = 0; r < gridRows; r++) {
         for (let c = 0; c < gridCols; c++) {
@@ -526,16 +554,15 @@
           const p3 = interp(c * colW + padU, (r + 1) * rowH - padV);
 
           let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [p0.x, p0.y, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y]);
-          const size = 400;
-          let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, size, 0, size, size, 0, size]);
+          let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, outWidth, 0, outWidth, outHeight, 0, outHeight]);
 
           let M = cv.getPerspectiveTransform(srcTri, dstTri);
           let dst = new cv.Mat();
-          cv.warpPerspective(srcMat, dst, M, new cv.Size(size, size), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+          cv.warpPerspective(srcMat, dst, M, new cv.Size(outWidth, outHeight), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
 
           let fCanvas = document.createElement('canvas');
-          fCanvas.width = size;
-          fCanvas.height = size;
+          fCanvas.width = outWidth;
+          fCanvas.height = outHeight;
           cv.imshow(fCanvas, dst);
           newPageFrames.push(fCanvas);
 
@@ -552,6 +579,11 @@
 
       document.getElementById('adjustCard').style.display = 'none';
       document.getElementById('playerCard').style.display = 'block';
+
+      // Update Player canvas dimensions
+      const animCanvas = document.getElementById('animationCanvas');
+      animCanvas.width = outWidth;
+      animCanvas.height = outHeight;
 
       refreshFrameStrip();
       startPlayback();
@@ -576,7 +608,7 @@
         wrapper.className = 'frame-wrapper';
 
         const imgThumb = document.createElement('img');
-        imgThumb.src = fCanvas.toDataURL();
+        imgThumb.src = fCanvas.toDataURL('image/jpeg', 0.9);
         imgThumb.className = 'frame-thumb';
 
         const del = document.createElement('div');
@@ -610,7 +642,6 @@
       document.getElementById('exportStatus').innerHTML = '';
     }
 
-    // Animation Loop
     function startPlayback() {
       clearInterval(playInterval);
       isPlaying = true;
@@ -621,8 +652,8 @@
 
       playInterval = setInterval(() => {
         if (allFrames.length === 0) return;
-        ctx.clearRect(0, 0, 500, 500);
-        ctx.drawImage(allFrames[currentFrameIdx], 0, 0, 500, 500);
+        ctx.clearRect(0, 0, outWidth, outHeight);
+        ctx.drawImage(allFrames[currentFrameIdx], 0, 0, outWidth, outHeight);
         currentFrameIdx = (currentFrameIdx + 1) % allFrames.length;
       }, 1000 / fps);
     }
@@ -643,13 +674,51 @@
       if (isPlaying) startPlayback();
     }
 
-    // --- VIDEO & GIF ENCODERS ---
+    // Export JPGs in ZIP
+    async function exportJpgZip() {
+      const status = document.getElementById('exportStatus');
+      status.innerText = 'Packaging JPG frames into ZIP...';
 
-    // 1. Render Video File Blob (3 loops)
+      const zip = new JSZip();
+      const folder = zip.folder("stopmotion_frames");
+
+      allFrames.forEach((canvas, idx) => {
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+        const base64Data = dataUrl.replace(/^data:image\/jpeg;base64,/, "");
+        const num = String(idx + 1).padStart(2, '0');
+        folder.file(`frame_${num}.jpg`, base64Data, {base64: true});
+      });
+
+      const zipBlob = await zip.generateAsync({type: "blob"});
+      const zipFile = new File([zipBlob], "stopmotion_frames.zip", { type: "application/zip" });
+
+      if (navigator.canShare && navigator.canShare({ files: [zipFile] })) {
+        try {
+          await navigator.share({
+            files: [zipFile],
+            title: 'Stop Motion Frames',
+            text: 'Here are my stop motion JPG frames!'
+          });
+          status.innerText = 'ZIP shared successfully!';
+          return;
+        } catch(err) { console.log('Share dismissed', err); }
+      }
+
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = "stopmotion_frames.zip";
+      a.className = "btn btn-purple";
+      a.innerText = "⬇️ Tap to Download .ZIP (JPGs)";
+      status.innerHTML = '';
+      status.appendChild(a);
+    }
+
+    // Video Recording
     async function createVideoBlob(loopCount = 3) {
       const recCanvas = document.createElement('canvas');
-      recCanvas.width = 500;
-      recCanvas.height = 500;
+      recCanvas.width = outWidth;
+      recCanvas.height = outHeight;
       const recCtx = recCanvas.getContext('2d');
       const stream = recCanvas.captureStream(fps);
 
@@ -675,8 +744,8 @@
         let loop = 0;
         let idx = 0;
         const interval = setInterval(() => {
-          recCtx.clearRect(0, 0, 500, 500);
-          recCtx.drawImage(allFrames[idx], 0, 0, 500, 500);
+          recCtx.clearRect(0, 0, outWidth, outHeight);
+          recCtx.drawImage(allFrames[idx], 0, 0, outWidth, outHeight);
           idx++;
           if (idx >= allFrames.length) {
             idx = 0;
@@ -690,8 +759,7 @@
       });
     }
 
-    // 2. Share to WhatsApp / Social via Native Share API
-    async function shareVideoOrGif(target) {
+    async function shareVideoOrGif() {
       const status = document.getElementById('exportStatus');
       status.innerText = 'Preparing video for WhatsApp...';
 
@@ -707,24 +775,19 @@
             });
             status.innerText = 'Shared successfully!';
             return;
-          } catch(err) {
-            console.log('Share dismissed', err);
-          }
+          } catch(err) { console.log('Share dismissed', err); }
         }
       }
-
-      // Fallback if browser doesn't support direct file sharing
-      status.innerHTML = `<a href="https://api.whatsapp.com/send?text=Look%20at%20my%20stop%20motion!" target="_blank" class="btn btn-wa">Open WhatsApp Web</a><br><small>Tip: Save the video first, then attach to chat.</small>`;
+      status.innerHTML = `<a href="https://api.whatsapp.com/send?text=Check%20my%20stop%20motion!" target="_blank" class="btn btn-wa">Open WhatsApp Web</a><br><small>Tip: Save the video first, then send via chat.</small>`;
     }
 
-    // 3. Save MP4 / WebM Video
     async function exportVideoFile() {
       const status = document.getElementById('exportStatus');
-      status.innerText = 'Rendering video...';
+      status.innerText = 'Rendering widescreen video...';
       const vidData = await createVideoBlob(3);
 
       if (!vidData) {
-        status.innerText = 'Video not supported on this browser. Try Save GIF!';
+        status.innerText = 'Video not supported on this browser. Use Save GIF!';
         return;
       }
 
@@ -733,22 +796,21 @@
       a.href = url;
       a.download = `stopmotion.${vidData.ext}`;
       a.className = 'btn btn-blue';
-      a.innerText = `⬇️ Tap to Download .${vidData.ext} Video`;
+      a.innerText = `⬇️ Tap to Download Video .${vidData.ext}`;
       status.innerHTML = '';
       status.appendChild(a);
     }
 
-    // 4. Save GIF
     function exportGifFile() {
       const status = document.getElementById('exportStatus');
       status.innerText = 'Rendering GIF...';
-      const imagesData = allFrames.map(f => f.toDataURL('image/png'));
+      const imagesData = allFrames.map(f => f.toDataURL('image/jpeg', 0.9));
 
       gifshot.createGIF({
         images: imagesData,
         interval: 1 / fps,
-        gifWidth: 400,
-        gifHeight: 400,
+        gifWidth: outWidth,
+        gifHeight: outHeight,
         numWorkers: 2
       }, function(obj) {
         if (!obj.error) {
@@ -758,6 +820,9 @@
         }
       });
     }
+
+    // Init
+    updateDimensions();
   </script>
 </body>
 </html>
