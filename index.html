@@ -781,4 +781,287 @@
     window.addEventListener('mousemove', onPointerMove);
     window.addEventListener('mouseup', onPointerUp);
     cropCanvas.addEventListener('touchstart', onPointerDown, { passive: false });
-    window.addEventListener('touc
+    window.addEventListener('touchmove', onPointerMove, { passive: false });
+    window.addEventListener('touchend', onPointerUp);
+
+    // Dewarp & Extract using Piecewise Homography
+    function cropAndAnimate() {
+      updateDimensions();
+      const newPageFrames = [];
+      const srcMat = cv.imread(cropCanvas);
+
+      for (let r = 0; r < gridRows; r++) {
+        for (let c = 0; c < gridCols; c++) {
+          const [p0, p1, p2, p3] = getBoxCorners(c, r);
+
+          let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [p0.x, p0.y, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y]);
+          let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, outWidth, 0, outWidth, outHeight, 0, outHeight]);
+
+          let M = cv.getPerspectiveTransform(srcTri, dstTri);
+          let dst = new cv.Mat();
+          cv.warpPerspective(srcMat, dst, M, new cv.Size(outWidth, outHeight), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+
+          let fCanvas = document.createElement('canvas');
+          fCanvas.width = outWidth;
+          fCanvas.height = outHeight;
+          cv.imshow(fCanvas, dst);
+          newPageFrames.push(fCanvas);
+
+          srcTri.delete(); dstTri.delete(); M.delete(); dst.delete();
+        }
+      }
+      srcMat.delete();
+
+      if (isAppending) {
+        allFrames = allFrames.concat(newPageFrames);
+      } else {
+        allFrames = newPageFrames;
+      }
+
+      document.getElementById('adjustCard').style.display = 'none';
+      document.getElementById('playerCard').style.display = 'block';
+
+      const animCanvas = document.getElementById('animationCanvas');
+      animCanvas.width = outWidth;
+      animCanvas.height = outHeight;
+
+      refreshFrameStrip();
+      startPlayback();
+    }
+
+    function cancelAdjust() {
+      document.getElementById('adjustCard').style.display = 'none';
+      if (allFrames.length > 0) {
+        document.getElementById('playerCard').style.display = 'block';
+        startPlayback();
+      } else {
+        document.getElementById('uploadCard').style.display = 'block';
+      }
+    }
+
+    function refreshFrameStrip() {
+      document.getElementById('totalFramesCount').innerText = allFrames.length;
+      const strip = document.getElementById('frameStrip');
+      strip.innerHTML = '';
+      allFrames.forEach((fCanvas, idx) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'frame-wrapper';
+
+        const imgThumb = document.createElement('img');
+        imgThumb.src = fCanvas.toDataURL('image/jpeg', 0.9);
+        imgThumb.className = 'frame-thumb';
+
+        const del = document.createElement('div');
+        del.className = 'frame-delete';
+        del.innerHTML = '✖';
+        del.onclick = () => deleteFrame(idx);
+
+        wrapper.appendChild(imgThumb);
+        wrapper.appendChild(del);
+        strip.appendChild(wrapper);
+      });
+    }
+
+    function deleteFrame(idx) {
+      if (allFrames.length <= 1) {
+        alert("You need at least 1 frame!");
+        return;
+      }
+      allFrames.splice(idx, 1);
+      refreshFrameStrip();
+      if (currentFrameIdx >= allFrames.length) currentFrameIdx = 0;
+    }
+
+    function resetAll() {
+      clearInterval(playInterval);
+      allFrames = [];
+      document.getElementById('playerCard').style.display = 'none';
+      document.getElementById('uploadCard').style.display = 'block';
+      document.getElementById('cameraInput').value = '';
+      document.getElementById('appendCameraInput').value = '';
+      document.getElementById('exportStatus').innerHTML = '';
+    }
+
+    function startPlayback() {
+      clearInterval(playInterval);
+      isPlaying = true;
+      document.getElementById('playBtn').innerText = '⏸️ Pause';
+      
+      const animCanvas = document.getElementById('animationCanvas');
+      const ctx = animCanvas.getContext('2d');
+
+      playInterval = setInterval(() => {
+        if (allFrames.length === 0) return;
+        ctx.clearRect(0, 0, outWidth, outHeight);
+        ctx.drawImage(allFrames[currentFrameIdx], 0, 0, outWidth, outHeight);
+        currentFrameIdx = (currentFrameIdx + 1) % allFrames.length;
+      }, 1000 / fps);
+    }
+
+    function togglePlay() {
+      if (isPlaying) {
+        clearInterval(playInterval);
+        isPlaying = false;
+        document.getElementById('playBtn').innerText = '▶️ Play';
+      } else {
+        startPlayback();
+      }
+    }
+
+    function updateFps(val) {
+      fps = parseInt(val);
+      document.getElementById('fpsLabel').innerText = fps;
+      if (isPlaying) startPlayback();
+    }
+
+    // Export JPGs in ZIP
+    async function exportJpgZip() {
+      const status = document.getElementById('exportStatus');
+      status.innerText = 'Packaging JPG frames into ZIP...';
+
+      const zip = new JSZip();
+      const folder = zip.folder("stopmotion_frames");
+
+      allFrames.forEach((canvas, idx) => {
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+        const base64Data = dataUrl.replace(/^data:image\/jpeg;base64,/, "");
+        const num = String(idx + 1).padStart(2, '0');
+        folder.file(`frame_${num}.jpg`, base64Data, {base64: true});
+      });
+
+      const zipBlob = await zip.generateAsync({type: "blob"});
+      const zipFile = new File([zipBlob], "stopmotion_frames.zip", { type: "application/zip" });
+
+      if (navigator.canShare && navigator.canShare({ files: [zipFile] })) {
+        try {
+          await navigator.share({
+            files: [zipFile],
+            title: 'Stop Motion Frames',
+            text: 'Here are my stop motion JPG frames!'
+          });
+          status.innerText = 'ZIP shared successfully!';
+          return;
+        } catch(err) { console.log('Share dismissed', err); }
+      }
+
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = "stopmotion_frames.zip";
+      a.className = "btn btn-purple";
+      a.innerText = "⬇️ Tap to Download .ZIP (JPGs)";
+      status.innerHTML = '';
+      status.appendChild(a);
+    }
+
+    // Video Recording
+    async function createVideoBlob(loopCount = 3) {
+      const recCanvas = document.createElement('canvas');
+      recCanvas.width = outWidth;
+      recCanvas.height = outHeight;
+      const recCtx = recCanvas.getContext('2d');
+      const stream = recCanvas.captureStream(fps);
+
+      let mimeType = 'video/mp4';
+      if (typeof MediaRecorder === 'undefined') return null;
+      if (!MediaRecorder.isTypeSupported('video/mp4')) {
+        if (MediaRecorder.isTypeSupported('video/webm')) mimeType = 'video/webm';
+        else mimeType = '';
+      }
+
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+      const chunks = [];
+      recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+
+      return new Promise((resolve) => {
+        recorder.onstop = () => {
+          const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+          const blob = new Blob(chunks, { type: mimeType || 'video/mp4' });
+          resolve({ blob, ext, mimeType: mimeType || 'video/mp4' });
+        };
+
+        recorder.start();
+        let loop = 0;
+        let idx = 0;
+        const interval = setInterval(() => {
+          recCtx.clearRect(0, 0, outWidth, outHeight);
+          recCtx.drawImage(allFrames[idx], 0, 0, outWidth, outHeight);
+          idx++;
+          if (idx >= allFrames.length) {
+            idx = 0;
+            loop++;
+            if (loop >= loopCount) {
+              clearInterval(interval);
+              setTimeout(() => recorder.stop(), 200);
+            }
+          }
+        }, 1000 / fps);
+      });
+    }
+
+    async function shareVideoOrGif() {
+      const status = document.getElementById('exportStatus');
+      status.innerText = 'Preparing video for WhatsApp...';
+
+      const vidData = await createVideoBlob(3);
+      if (vidData) {
+        const file = new File([vidData.blob], `animation.${vidData.ext}`, { type: vidData.mimeType });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: 'My Stop Motion',
+              text: 'Check out my stop motion animation!'
+            });
+            status.innerText = 'Shared successfully!';
+            return;
+          } catch(err) { console.log('Share dismissed', err); }
+        }
+      }
+      status.innerHTML = `<a href="https://api.whatsapp.com/send?text=Check%20my%20stop%20motion!" target="_blank" class="btn btn-wa">Open WhatsApp Web</a><br><small>Tip: Save the video first, then send via chat.</small>`;
+    }
+
+    async function exportVideoFile() {
+      const status = document.getElementById('exportStatus');
+      status.innerText = 'Rendering video...';
+      const vidData = await createVideoBlob(3);
+
+      if (!vidData) {
+        status.innerText = 'Video not supported on this browser. Use Save GIF!';
+        return;
+      }
+
+      const url = URL.createObjectURL(vidData.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `stopmotion.${vidData.ext}`;
+      a.className = 'btn btn-blue';
+      a.innerText = `⬇️ Tap to Download Video .${vidData.ext}`;
+      status.innerHTML = '';
+      status.appendChild(a);
+    }
+
+    function exportGifFile() {
+      const status = document.getElementById('exportStatus');
+      status.innerText = 'Rendering GIF...';
+      const imagesData = allFrames.map(f => f.toDataURL('image/jpeg', 0.9));
+
+      gifshot.createGIF({
+        images: imagesData,
+        interval: 1 / fps,
+        gifWidth: outWidth,
+        gifHeight: outHeight,
+        numWorkers: 2
+      }, function(obj) {
+        if (!obj.error) {
+          status.innerHTML = `<a href="${obj.image}" download="stopmotion.gif" class="btn btn-green">⬇️ Tap to Download GIF</a>`;
+        } else {
+          status.innerText = 'Could not generate GIF.';
+        }
+      });
+    }
+
+    updateDimensions();
+  </script>
+</body>
+</html>
