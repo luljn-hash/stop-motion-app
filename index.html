@@ -1,1 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kids Stop-Motion Workshop</title>
+  <!-- GIF creation library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.3.2/gifshot.min.js"></script>
+  <!-- OpenCV.js for automatic square detection -->
+  <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
 
+  <style>
+    :root {
+      --primary: #ff5722;
+      --secondary: #4caf50;
+      --bg: #f7f9fc;
+      --card: #ffffff;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background-color: var(--bg);
+      color: #333;
+      text-align: center;
+    }
+    h1 { margin: 8px 0; font-size: 1.6rem; color: #222; }
+    p { margin: 4px 0 16px; color: #666; font-size: 0.95rem; }
+    
+    .btn {
+      display: inline-block;
+      background: var(--primary);
+      color: white;
+      font-size: 1rem;
+      font-weight: bold;
+      padding: 12px 20px;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      margin: 6px 4px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      touch-action: manipulation;
+    }
+    .btn-green { background: var(--secondary); }
+    .btn-blue { background: #2196f3; }
+    .btn-outline { background: transparent; color: #555; border: 2px solid #ccc; box-shadow: none; }
+    
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 16px;
+      margin: 12px auto;
+      max-width: 480px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+    
+    #animationCanvas {
+      width: 100%;
+      max-width: 320px;
+      aspect-ratio: 1 / 1;
+      background: #eee;
+      border-radius: 12px;
+      border: 3px solid #333;
+      object-fit: cover;
+    }
+
+    .frame-strip {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 10px 0;
+      margin-top: 10px;
+    }
+    .frame-thumb {
+      width: 60px;
+      height: 60px;
+      border-radius: 8px;
+      border: 2px solid #ddd;
+      flex-shrink: 0;
+      object-fit: cover;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .controls input[type=range] { width: 120px; }
+
+    /* Printable Template */
+    @media print {
+      body * { visibility: hidden; }
+      #printableGrid, #printableGrid * { visibility: visible; }
+      #printableGrid {
+        position: absolute;
+        left: 0; top: 0;
+        width: 100vw; height: 100vh;
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr 1fr;
+        gap: 20px;
+        padding: 40px;
+        box-sizing: border-box;
+      }
+      .grid-box {
+        border: 5px solid #000;
+        border-radius: 8px;
+        position: relative;
+      }
+      .grid-number {
+        position: absolute;
+        top: 8px; left: 8px;
+        font-size: 24px; font-weight: bold;
+      }
+    }
+    #printableGrid { display: none; }
+  </style>
+</head>
+<body>
+
+  <h1>🎬 Stop-Motion Magic</h1>
+  <p>Draw frames on paper, take a photo, and watch it move!</p>
+
+  <!-- Step 1: Capture / Template -->
+  <div class="card">
+    <button class="btn btn-outline" onclick="window.print()">🖨️ Print 6-Box Template</button>
+    <div style="margin-top: 10px;">
+      <label for="cameraInput" class="btn btn-green">📷 Snap Photo / Upload</label>
+      <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
+    </div>
+    <div id="cvStatus" style="font-size: 0.8rem; color: #888; margin-top: 6px;">Loading smart detector...</div>
+  </div>
+
+  <!-- Step 2: Stop Motion Player -->
+  <div class="card" id="playerCard" style="display:none;">
+    <canvas id="animationCanvas" width="500" height="500"></canvas>
+    
+    <div class="controls">
+      <button class="btn btn-blue" id="playBtn" onclick="togglePlay()">⏸️ Pause</button>
+      <label>Speed: <span id="fpsLabel">6</span> FPS</label>
+      <input type="range" id="fpsSlider" min="2" max="15" value="6" oninput="updateFps(this.value)">
+    </div>
+
+    <!-- Frames thumbnail preview -->
+    <div class="frame-strip" id="frameStrip"></div>
+
+    <button class="btn btn-green" id="exportBtn" onclick="exportGif()" style="margin-top: 12px;">💾 Save as GIF</button>
+    <div id="gifStatus" style="font-size: 0.85rem; margin-top: 6px; color: #666;"></div>
+  </div>
+
+  <!-- Printable Worksheet DOM Elements (Hidden on screen, shown in print) -->
+  <div id="printableGrid">
+    <div class="grid-box"><span class="grid-number">1</span></div>
+    <div class="grid-box"><span class="grid-number">2</span></div>
+    <div class="grid-box"><span class="grid-number">3</span></div>
+    <div class="grid-box"><span class="grid-number">4</span></div>
+    <div class="grid-box"><span class="grid-number">5</span></div>
+    <div class="grid-box"><span class="grid-number">6</span></div>
+  </div>
+
+  <script>
+    let openCvLoaded = false;
+    let frames = [];
+    let currentFrameIdx = 0;
+    let isPlaying = false;
+    let fps = 6;
+    let playInterval = null;
+
+    function onOpenCvReady() {
+      openCvLoaded = true;
+      document.getElementById('cvStatus').innerText = '✨ Detector ready!';
+    }
+
+    // Handle Image Upload
+    document.getElementById('cameraInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+          processImage(img);
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Detect squares or fallback to grid slicing
+    function processImage(img) {
+      frames = [];
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+
+      if (openCvLoaded) {
+        try {
+          frames = detectSquaresWithOpenCV(canvas, img);
+        } catch (err) {
+          console.warn("OpenCV detection fell back to standard 2x3 grid", err);
+          frames = sliceGrid(img, 2, 3);
+        }
+      } else {
+        frames = sliceGrid(img, 2, 3);
+      }
+
+      if (frames.length === 0) {
+        frames = sliceGrid(img, 2, 3); // Fallback: 2 rows x 3 cols
+      }
+
+      showPlayer();
+    }
+
+    // OpenCV 4-corner square finder
+    function detectSquaresWithOpenCV(canvas, img) {
+      let src = cv.imread(canvas);
+      let gray = new cv.Mat();
+      let thresh = new cv.Mat();
+      let contours = new cv.MatVector();
+      let hierarchy = new cv.Mat();
+
+      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+      cv.GaussianBlur(gray, gray, new cv.Size(5, 5), 0);
+      cv.adaptiveThreshold(gray, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 15, 3);
+
+      cv.findContours(thresh, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+      let detected = [];
+      for (let i = 0; i < contours.size(); ++i) {
+        let cnt = contours.get(i);
+        let approx = new cv.Mat();
+        let perimeter = cv.arcLength(cnt, true);
+        cv.approxPolyDP(cnt, approx, 0.03 * perimeter, true);
+
+        let area = cv.contourArea(cnt);
+        if (approx.rows === 4 && area > (canvas.width * canvas.height * 0.015)) {
+          let rect = cv.boundingRect(approx);
+          let aspect = rect.width / rect.height;
+          if (aspect >= 0.75 && aspect <= 1.3) {
+            detected.push({ x: rect.x, y: rect.y, w: rect.width, h: rect.height });
+          }
+        }
+        approx.delete();
+      }
+
+      // Cleanup OpenCV memory
+      src.delete(); gray.delete(); thresh.delete(); contours.delete(); hierarchy.delete();
+
+      if (detected.length < 2) return [];
+
+      // Sort top-to-bottom, left-to-right
+      detected.sort((a, b) => (Math.floor(a.y / 150) - Math.floor(b.y / 150)) || (a.x - b.x));
+
+      // Crop frames to 400x400 canvases
+      return detected.map(box => {
+        let frameCanvas = document.createElement('canvas');
+        frameCanvas.width = 400;
+        frameCanvas.height = 400;
+        let fCtx = frameCanvas.getContext('2d');
+        fCtx.drawImage(img, box.x, box.y, box.w, box.h, 0, 0, 400, 400);
+        return frameCanvas;
+      });
+    }
+
+    // Fallback: Slices evenly into rows x cols
+    function sliceGrid(img, cols, rows) {
+      let result = [];
+      let cellW = img.width / cols;
+      let cellH = img.height / rows;
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          let fCanvas = document.createElement('canvas');
+          fCanvas.width = 400;
+          fCanvas.height = 400;
+          let fCtx = fCanvas.getContext('2d');
+          fCtx.drawImage(img, c * cellW, r * cellH, cellW, cellH, 0, 0, 400, 400);
+          result.push(fCanvas);
+        }
+      }
+      return result;
+    }
+
+    // Display & Animation Loop
+    function showPlayer() {
+      document.getElementById('playerCard').style.display = 'block';
+      const strip = document.getElementById('frameStrip');
+      strip.innerHTML = '';
+
+      frames.forEach((fCanvas, idx) => {
+        let imgThumb = document.createElement('img');
+        imgThumb.src = fCanvas.toDataURL();
+        imgThumb.className = 'frame-thumb';
+        strip.appendChild(imgThumb);
+      });
+
+      startPlayback();
+    }
+
+    function startPlayback() {
+      clearInterval(playInterval);
+      isPlaying = true;
+      document.getElementById('playBtn').innerText = '⏸️ Pause';
+      
+      const animCanvas = document.getElementById('animationCanvas');
+      const ctx = animCanvas.getContext('2d');
+
+      playInterval = setInterval(() => {
+        if (frames.length === 0) return;
+        ctx.clearRect(0, 0, 500, 500);
+        ctx.drawImage(frames[currentFrameIdx], 0, 0, 500, 500);
+        currentFrameIdx = (currentFrameIdx + 1) % frames.length;
+      }, 1000 / fps);
+    }
+
+    function togglePlay() {
+      if (isPlaying) {
+        clearInterval(playInterval);
+        isPlaying = false;
+        document.getElementById('playBtn').innerText = '▶️ Play';
+      } else {
+        startPlayback();
+      }
+    }
+
+    function updateFps(val) {
+      fps = parseInt(val);
+      document.getElementById('fpsLabel').innerText = fps;
+      if (isPlaying) startPlayback();
+    }
+
+    // Export Animation to GIF
+    function exportGif() {
+      const status = document.getElementById('gifStatus');
+      status.innerText = 'Rendering GIF, please wait...';
+      
+      const imagesData = frames.map(f => f.toDataURL('image/png'));
+
+      gifshot.createGIF({
+        images: imagesData,
+        interval: 1 / fps,
+        gifWidth: 400,
+        gifHeight: 400,
+        numWorkers: 2
+      }, function(obj) {
+        if (!obj.error) {
+          status.innerHTML = `<a href="${obj.image}" download="stopmotion.gif" class="btn btn-green" style="margin-top:8px;">⬇️ Tap Here to Save GIF</a>`;
+        } else {
+          status.innerText = 'Could not generate GIF.';
+        }
+      });
+    }
+  </script>
+</body>
+</html>
