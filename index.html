@@ -130,8 +130,8 @@
       margin-bottom: 6px;
     }
     .legend-item { display: flex; align-items: center; gap: 4px; }
-    .dot-red { width: 12px; height: 12px; border-radius: 50%; background: #ff5722; border: 1px solid #fff; display: inline-block; }
-    .dot-green { width: 12px; height: 12px; border-radius: 50%; background: #00e676; border: 1px solid #fff; display: inline-block; }
+    .dot-red { width: 12px; height: 12px; border-radius: 50%; background: #ff5722; border: 1.5px solid #fff; display: inline-block; }
+    .dot-green { width: 12px; height: 12px; border-radius: 50%; background: #00e676; border: 1.5px solid #fff; display: inline-block; }
 
     #cropCanvas {
       width: 100%;
@@ -201,7 +201,7 @@
       margin-top: 12px;
     }
 
-    /* Clean Printable Template: Zero text, pure boxes */
+    /* Plantilla Imprimible: Bordes más gruesos y separación de 1/4 */
     @media print {
       @page { size: auto; margin: 10mm; }
       body * { visibility: hidden; }
@@ -210,8 +210,17 @@
         position: absolute; left: 0; top: 0; width: 100vw; height: 100vh;
         display: flex !important; flex-direction: column; align-items: center; justify-content: center;
       }
-      .print-container { display: grid !important; gap: 8mm; justify-content: center; }
-      .grid-box { border: 4.5px solid #000; border-radius: 4px; position: relative; box-sizing: border-box; }
+      .print-container { 
+        display: grid !important; 
+        gap: 18mm; /* Separación de 1/4 */
+        justify-content: center; 
+      }
+      .grid-box { 
+        border: 6px solid #000; /* Borde más grueso */
+        border-radius: 4px; 
+        position: relative; 
+        box-sizing: border-box; 
+      }
     }
     #printableGrid { display: none; }
   </style>
@@ -219,7 +228,7 @@
 <body>
 
   <h1>🎬 Smart Stop Motion Studio</h1>
-  <p>Drag corner & middle dots to lock onto every frame perfectly!</p>
+  <p>Puntos verdes en línea recta con los rojos para ajuste de perspectiva perfecto.</p>
 
   <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
   <input type="file" id="appendCameraInput" accept="image/*" capture="environment" style="display:none;">
@@ -228,67 +237,67 @@
   <div class="card" id="uploadCard">
     <label class="toggle-box">
       <input type="checkbox" id="autoDetectToggle" checked>
-      <span>✨ Auto-Detect 3D Perspective Grid</span>
+      <span>✨ Auto-Detectar Cuadrícula 3D</span>
     </label>
 
     <div style="display: flex; justify-content: space-between; align-items: center;">
-      <span style="font-weight: bold; font-size: 0.95rem;">📐 Grid: <span id="gridSummary">2×3 (6 Frames)</span></span>
-      <button class="btn btn-purple btn-sm" onclick="toggleSettings()">⚙️ Customize</button>
+      <span style="font-weight: bold; font-size: 0.95rem;">📐 Cuadrícula: <span id="gridSummary">2×3 (6 Cuadros)</span></span>
+      <button class="btn btn-purple btn-sm" onclick="toggleSettings()">⚙️ Personalizar</button>
     </div>
 
     <div class="settings-panel" id="settingsPanel" style="display:none;">
-      <div style="font-weight:bold; margin-bottom:6px;">⚡ Quick Presets:</div>
+      <div style="font-weight:bold; margin-bottom:6px;">⚡ Opciones Rápidas:</div>
       <div class="preset-group">
-        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 3, 1.0, '6 Square Post-its')">🟨 6 Square (2×3)</button>
-        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 2, 1.0, '4 Square Post-its')">🟨 4 Square (2×2)</button>
+        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 3, 1.0, '6 Cuadros (2×3)')">🟨 6 Cuadros (2×3)</button>
+        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 2, 1.0, '4 Cuadros (2×2)')">🟨 4 Cuadros (2×2)</button>
         <button class="btn btn-outline btn-sm" onclick="setPreset(2, 3, 1.85, '6 Cinema (1.85:1)')">🎞️ 6 Cinema (1.85:1)</button>
         <button class="btn btn-outline btn-sm" onclick="setPreset(2, 4, 1.85, '8 Cinema (1.85:1)')">🎞️ 8 Cinema (1.85:1)</button>
       </div>
       <hr style="border:0; border-top:1px solid #ddd; margin:10px 0;">
       
       <div class="settings-row">
-        <label><strong>Frame Ratio:</strong></label>
+        <label><strong>Formato:</strong></label>
         <select id="ratioSelect" onchange="onCustomGridChange()">
-          <option value="1.0" selected>1:1 Square (Post-it)</option>
-          <option value="1.85">1.85:1 Cinematic Widescreen</option>
-          <option value="1.777">16:9 Widescreen (Video)</option>
-          <option value="1.333">4:3 Standard Frame</option>
+          <option value="1.0" selected>1:1 Cuadrado (Post-it)</option>
+          <option value="1.85">1.85:1 Cine Widescreen</option>
+          <option value="1.777">16:9 Video</option>
+          <option value="1.333">4:3 TV Estándar</option>
         </select>
       </div>
 
       <div class="settings-row">
-        <label>Columns (Horizontal):</label>
+        <label>Columnas (Horizontal):</label>
         <input type="number" id="colsInput" min="1" max="4" value="2" onchange="onCustomGridChange()">
       </div>
       <div class="settings-row">
-        <label>Rows (Vertical):</label>
+        <label>Filas (Vertical):</label>
         <input type="number" id="rowsInput" min="1" max="5" value="3" onchange="onCustomGridChange()">
       </div>
     </div>
 
     <div style="margin-top: 12px;">
-      <button class="btn btn-outline" onclick="prepareAndPrint()">🖨️ Print Clean Worksheet</button>
+      <button class="btn btn-outline" onclick="prepareAndPrint()">🖨️ Imprimir Plantilla Gruesa (1/4 espacio)</button>
     </div>
     
     <div style="margin-top: 8px;">
-      <label for="cameraInput" class="btn btn-green" style="font-size: 1.05rem; padding: 12px 24px;">📷 Snap Photo / Page 1</label>
+      <label for="cameraInput" class="btn btn-green" style="font-size: 1.05rem; padding: 12px 24px;">📷 Tomar Foto / Página 1</label>
     </div>
   </div>
 
-  <!-- Step 2: Interactive Grid with Middle Divider Control Points -->
+  <!-- Step 2: Interactive Grid with Straight Rail Constraints -->
   <div class="card" id="adjustCard" style="display:none;">
-    <div class="status-banner" id="snapStatusMsg" style="background:#e8f5e9; color:#2e7d32;">✨ Grid locked! Drag red/green dots to tweak.</div>
+    <div class="status-banner" id="snapStatusMsg" style="background:#e8f5e9; color:#2e7d32;">✨ Cuadrícula alineada en perspectiva.</div>
     
     <div class="legend-box">
-      <span class="legend-item"><span class="dot-red"></span> Red = Corners</span>
-      <span class="legend-item"><span class="dot-green"></span> Green = Row Dividers</span>
+      <span class="legend-item"><span class="dot-red"></span> Rojos = Esquinas</span>
+      <span class="legend-item"><span class="dot-green"></span> Verdes = Líneas de Fila</span>
     </div>
 
     <canvas id="cropCanvas"></canvas>
 
     <div style="margin-top: 10px;">
-      <button class="btn btn-blue" id="confirmCropBtn" onclick="cropAndAnimate()">✨ Generate Stop Motion</button>
-      <button class="btn btn-outline" onclick="cancelAdjust()">🔄 Retake</button>
+      <button class="btn btn-blue" id="confirmCropBtn" onclick="cropAndAnimate()">✨ Generar Stop Motion</button>
+      <button class="btn btn-outline" onclick="cancelAdjust()">🔄 Repetir Foto</button>
     </div>
   </div>
 
@@ -297,25 +306,25 @@
     <canvas id="animationCanvas"></canvas>
     
     <div class="controls">
-      <button class="btn btn-blue" id="playBtn" onclick="togglePlay()">⏸️ Pause</button>
-      <label>Speed: <span id="fpsLabel">6</span> FPS</label>
+      <button class="btn btn-blue" id="playBtn" onclick="togglePlay()">⏸️ Pausa</button>
+      <label>Velocidad: <span id="fpsLabel">6</span> FPS</label>
       <input type="range" id="fpsSlider" min="2" max="15" value="6" oninput="updateFps(this.value)">
     </div>
 
     <div style="font-size:0.85rem; color:#666; margin-top:8px; font-weight:bold;">
-      🎞️ Total Frames: <span id="totalFramesCount">0</span>
+      🎞️ Total Cuadros: <span id="totalFramesCount">0</span>
     </div>
     <div class="frame-strip" id="frameStrip"></div>
 
     <div class="action-group">
-      <label for="appendCameraInput" class="btn btn-purple" style="font-size:1rem;">➕ Add Another Page (+Frames)</label>
-      <button class="btn btn-wa" onclick="shareVideoOrGif()">💬 Share on WhatsApp</button>
+      <label for="appendCameraInput" class="btn btn-purple" style="font-size:1rem;">➕ Añadir Otra Página (+Cuadros)</label>
+      <button class="btn btn-wa" onclick="shareVideoOrGif()">💬 Compartir en WhatsApp</button>
       <div style="display:flex; justify-content:center; gap:4px;">
-        <button class="btn btn-blue" style="flex:1;" onclick="exportVideoFile()">🎥 Save Video</button>
-        <button class="btn btn-green" style="flex:1;" onclick="exportGifFile()">💾 Save GIF</button>
+        <button class="btn btn-blue" style="flex:1;" onclick="exportVideoFile()">🎥 Guardar Video</button>
+        <button class="btn btn-green" style="flex:1;" onclick="exportGifFile()">💾 Guardar GIF</button>
       </div>
-      <button class="btn btn-outline" style="border-color:#ff5722; color:#ff5722;" onclick="exportJpgZip()">🖼️ Download Frames as JPG (.zip)</button>
-      <button class="btn btn-outline btn-sm" onclick="resetAll()" style="margin-top:6px;">🗑️ Start Over</button>
+      <button class="btn btn-outline" style="border-color:#ff5722; color:#ff5722;" onclick="exportJpgZip()">🖼️ Descargar JPGs (.zip)</button>
+      <button class="btn btn-outline btn-sm" onclick="resetAll()" style="margin-top:6px;">🗑️ Empezar de Nuevo</button>
     </div>
 
     <div id="exportStatus" style="font-size: 0.85rem; margin-top: 8px; color: #555;"></div>
@@ -330,10 +339,10 @@
     let gridCols = 2;
     let gridRows = 3;
     let aspectRatio = 1.0;
-    let currentPresetName = '2×3 (6 Frames)';
+    let currentPresetName = '2×3 (6 Cuadros)';
 
-    let boxWidthMm = 76;
-    let boxHeightMm = 76;
+    let boxWidthMm = 70;
+    let boxHeightMm = 70;
 
     let outWidth = 500;
     let outHeight = 500;
@@ -341,10 +350,10 @@
     let loadedImage = null;
     let isAppending = false;
     
-    // Grid Control Points
-    let corners = [];    // 4 Corner points: [TL(0), TR(1), BR(2), BL(3)]
-    let rowDividers = []; // Array of { L: {x,y}, R: {x,y} } for middle horizontal lines
-    let activeHandle = null; // Currently dragged dot
+    // Control Points
+    let corners = [];    // 4 Esquinas rojas: [TL(0), TR(1), BR(2), BL(3)]
+    let rowRatios = [];  // Proporciones t [0..1] para los puntos verdes sobre la línea recta
+    let activeHandle = null;
 
     let allFrames = [];
     let currentFrameIdx = 0;
@@ -357,7 +366,7 @@
 
     function onOpenCvReady() {
       openCvLoaded = true;
-      console.log('OpenCV Engine Loaded');
+      console.log('OpenCV Listo');
     }
 
     function toggleSettings() {
@@ -373,8 +382,8 @@
         outHeight = 500;
         outWidth = Math.round(500 * aspectRatio);
       }
-      boxWidthMm = aspectRatio === 1.85 ? 80 : 76;
-      boxHeightMm = aspectRatio === 1.85 ? 43 : 76;
+      boxWidthMm = aspectRatio === 1.85 ? 80 : 70;
+      boxHeightMm = aspectRatio === 1.85 ? 43 : 70;
     }
 
     function setPreset(cols, rows, ratio, name) {
@@ -395,7 +404,7 @@
       gridCols = Math.max(1, Math.min(5, parseInt(document.getElementById('colsInput').value) || 2));
       gridRows = Math.max(1, Math.min(6, parseInt(document.getElementById('rowsInput').value) || 3));
       aspectRatio = parseFloat(document.getElementById('ratioSelect').value) || 1.0;
-      currentPresetName = `${gridCols}×${gridRows} (${gridCols * gridRows} Frames)`;
+      currentPresetName = `${gridCols}×${gridRows} (${gridCols * gridRows} Cuadros)`;
       updateDimensions();
       updateGridSummary();
       initDividers();
@@ -403,7 +412,7 @@
     }
 
     function updateGridSummary() {
-      const ratioName = aspectRatio === 1.85 ? '1:1.85 Cinema' : (aspectRatio === 1.0 ? '1:1 Square' : `${aspectRatio}:1`);
+      const ratioName = aspectRatio === 1.85 ? '1:1.85 Cinema' : (aspectRatio === 1.0 ? '1:1 Cuadrado' : `${aspectRatio}:1`);
       document.getElementById('gridSummary').innerText = `${currentPresetName} • ${ratioName}`;
     }
 
@@ -446,22 +455,35 @@
       reader.readAsDataURL(file);
     }
 
-    // Initialize/Reset Middle Row Dividers along Left and Right Rails
+    // Inicializar los puntos verdes sobre la línea recta
     function initDividers() {
-      rowDividers = [];
-      if (corners.length < 4 || gridRows <= 1) return;
-
-      const [tl, tr, br, bl] = corners;
+      rowRatios = [];
+      if (gridRows <= 1) return;
       for (let r = 1; r < gridRows; r++) {
-        const t = r / gridRows;
-        rowDividers.push({
-          L: { x: (1 - t) * tl.x + t * bl.x, y: (1 - t) * tl.y + t * bl.y },
-          R: { x: (1 - t) * tr.x + t * br.x, y: (1 - t) * tr.y + t * br.y }
+        rowRatios.push({
+          tL: r / gridRows,
+          tR: r / gridRows
         });
       }
     }
 
-    // --- SMART PERSPECTIVE DETECTOR & INITIALIZER ---
+    // Obtener la posición exacta (x, y) de un punto verde sobre la recta de los puntos rojos
+    function getGreenPoint(side, t) {
+      const [tl, tr, br, bl] = corners;
+      if (side === 'L') {
+        return {
+          x: (1 - t) * tl.x + t * bl.x,
+          y: (1 - t) * tl.y + t * bl.y
+        };
+      } else {
+        return {
+          x: (1 - t) * tr.x + t * br.x,
+          y: (1 - t) * tr.y + t * br.y
+        };
+      }
+    }
+
+    // --- AUTO-DETECTOR EN PERSPECTIVA 3D ---
     function runSmartAutoDetect() {
       const autoEnabled = document.getElementById('autoDetectToggle').checked;
       const banner = document.getElementById('snapStatusMsg');
@@ -469,7 +491,7 @@
       if (!autoEnabled || !openCvLoaded || !loadedImage) {
         setManualDefaultCorners();
         initDividers();
-        banner.innerText = '✋ Drag red/green dots to fit your boxes.';
+        banner.innerText = '✋ Modo manual: Arrastra los puntos rojos y verdes.';
         banner.style.background = '#e3f2fd';
         banner.style.color = '#1565c0';
         return false;
@@ -552,7 +574,7 @@
           ];
 
           initDividers();
-          banner.innerText = `✅ Auto-snapped! Drag red corners or green dividers to fine-tune.`;
+          banner.innerText = `✅ ¡Alineado en perspectiva! Arrastra los puntos para ajustar.`;
           banner.style.background = '#e8f5e9';
           banner.style.color = '#2e7d32';
           return true;
@@ -565,7 +587,7 @@
 
       setManualDefaultCorners();
       initDividers();
-      banner.innerText = '🎯 Drag the red & green dots to line up with the boxes.';
+      banner.innerText = '🎯 Arrastra los puntos rojos y verdes para alinear con las cajas.';
       banner.style.background = '#fff3e0';
       banner.style.color = '#e65100';
       return false;
@@ -594,16 +616,16 @@
 
       runSmartAutoDetect();
 
-      document.getElementById('confirmCropBtn').innerText = isAppending ? '➕ Append Page Frames' : '✨ Generate Stop Motion';
+      document.getElementById('confirmCropBtn').innerText = isAppending ? '➕ Añadir Cuadros' : '✨ Generar Stop Motion';
       drawAdjuster();
     }
 
-    // --- PIECEWISE ROW-BY-ROW PERSPECTIVE INTERPOLATION ---
+    // --- INTERPOLACIÓN EN LÍNEA RECTA POR FILA ---
     function interpRow(r, u, v) {
-      const TL_r = (r === 0) ? corners[0] : rowDividers[r - 1].L;
-      const TR_r = (r === 0) ? corners[1] : rowDividers[r - 1].R;
-      const BR_r = (r === gridRows - 1) ? corners[2] : rowDividers[r].R;
-      const BL_r = (r === gridRows - 1) ? corners[3] : rowDividers[r].L;
+      const TL_r = (r === 0) ? corners[0] : getGreenPoint('L', rowRatios[r - 1].tL);
+      const TR_r = (r === 0) ? corners[1] : getGreenPoint('R', rowRatios[r - 1].tR);
+      const BR_r = (r === gridRows - 1) ? corners[2] : getGreenPoint('R', rowRatios[r].tR);
+      const BL_r = (r === gridRows - 1) ? corners[3] : getGreenPoint('L', rowRatios[r].tL);
 
       return {
         x: (1 - u) * (1 - v) * TL_r.x + u * (1 - v) * TR_r.x + u * v * BR_r.x + (1 - u) * v * BL_r.x,
@@ -611,17 +633,16 @@
       };
     }
 
-    // Calculate Box Corners in screen space for a specific cell (c, r)
+    // Cálculo con separación de 1/4 (0.25)
     function getBoxCorners(c, r) {
-      const gapXRatio = 0.105;
+      const gapXRatio = 0.25; // 1/4 de separación
       const totalW = gridCols + (gridCols - 1) * gapXRatio;
 
       const u0 = (c * (1.0 + gapXRatio)) / totalW;
       const u1 = (c * (1.0 + gapXRatio) + 1.0) / totalW;
 
-      // Small vertical inset (3%) so yellow outline hugs the black line
-      const v0 = 0.03;
-      const v1 = 0.97;
+      const v0 = 0.02;
+      const v1 = 0.98;
 
       return [
         interpRow(r, u0, v0),
@@ -635,28 +656,43 @@
       cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
       cropCtx.drawImage(loadedImage, 0, 0);
 
-      // 1. Draw outer connecting blue quad
-      cropCtx.strokeStyle = 'rgba(33, 150, 243, 0.7)';
-      cropCtx.lineWidth = Math.max(3, cropCanvas.width * 0.004);
+      // 1. Líneas rectas continuas conectando Rojo Superior -> Verdes -> Rojo Inferior
+      cropCtx.strokeStyle = 'rgba(33, 150, 243, 0.8)';
+      cropCtx.lineWidth = Math.max(3.5, cropCanvas.width * 0.0045);
+
+      // Riel Izquierdo Recto
+      cropCtx.beginPath();
+      cropCtx.moveTo(corners[0].x, corners[0].y);
+      cropCtx.lineTo(corners[3].x, corners[3].y);
+      cropCtx.stroke();
+
+      // Riel Derecho Recto
+      cropCtx.beginPath();
+      cropCtx.moveTo(corners[1].x, corners[1].y);
+      cropCtx.lineTo(corners[2].x, corners[2].y);
+      cropCtx.stroke();
+
+      // Líneas Superior e Inferior
       cropCtx.beginPath();
       cropCtx.moveTo(corners[0].x, corners[0].y);
       cropCtx.lineTo(corners[1].x, corners[1].y);
+      cropCtx.moveTo(corners[3].x, corners[3].y);
       cropCtx.lineTo(corners[2].x, corners[2].y);
-      cropCtx.lineTo(corners[3].x, corners[3].y);
-      cropCtx.closePath();
       cropCtx.stroke();
 
-      // 2. Draw horizontal divider lines connecting green dots
-      cropCtx.strokeStyle = 'rgba(0, 230, 118, 0.6)';
-      cropCtx.lineWidth = Math.max(2, cropCanvas.width * 0.003);
-      rowDividers.forEach(div => {
+      // 2. Líneas horizontales de división entre puntos verdes
+      cropCtx.strokeStyle = 'rgba(0, 230, 118, 0.7)';
+      cropCtx.lineWidth = Math.max(2.5, cropCanvas.width * 0.0035);
+      rowRatios.forEach(ratio => {
+        const ptL = getGreenPoint('L', ratio.tL);
+        const ptR = getGreenPoint('R', ratio.tR);
         cropCtx.beginPath();
-        cropCtx.moveTo(div.L.x, div.L.y);
-        cropCtx.lineTo(div.R.x, div.R.y);
+        cropCtx.moveTo(ptL.x, ptL.y);
+        cropCtx.lineTo(ptR.x, ptR.y);
         cropCtx.stroke();
       });
 
-      // 3. Draw perspective-locked yellow boxes
+      // 3. Cajas amarillas en perspectiva
       cropCtx.strokeStyle = '#ffeb3b';
       cropCtx.lineWidth = Math.max(3, cropCanvas.width * 0.0045);
 
@@ -674,10 +710,12 @@
         }
       }
 
-      // 4. Draw Green Middle Divider Handles
-      const greenRadius = Math.max(16, cropCanvas.width * 0.024);
-      rowDividers.forEach(div => {
-        [div.L, div.R].forEach(pt => {
+      // 4. Dibujar Puntos Verdes sobre la línea recta
+      const greenRadius = Math.max(16, cropCanvas.width * 0.025);
+      rowRatios.forEach(ratio => {
+        const ptL = getGreenPoint('L', ratio.tL);
+        const ptR = getGreenPoint('R', ratio.tR);
+        [ptL, ptR].forEach(pt => {
           cropCtx.fillStyle = '#00e676';
           cropCtx.beginPath();
           cropCtx.arc(pt.x, pt.y, greenRadius, 0, Math.PI * 2);
@@ -688,7 +726,7 @@
         });
       });
 
-      // 5. Draw Red Corner Handles
+      // 5. Dibujar Puntos Rojos de Esquina
       const redRadius = Math.max(18, cropCanvas.width * 0.028);
       corners.forEach(pt => {
         cropCtx.fillStyle = '#ff5722';
@@ -701,7 +739,7 @@
       });
     }
 
-    // Touch & Drag Handling for Corners + Middle Dividers
+    // Touch & Drag Handling con restricción a la línea recta
     function getCanvasCoords(e) {
       const rect = cropCanvas.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -717,20 +755,22 @@
       const touchDist = Math.max(38, cropCanvas.width * 0.07);
       activeHandle = null;
 
-      // 1. Check if user touched a Red Corner Dot
+      // 1. Verificar toque en Punto Rojo
       corners.forEach((pt, idx) => {
         if (Math.hypot(pt.x - pos.x, pt.y - pos.y) < touchDist) {
           activeHandle = { type: 'corner', idx: idx };
         }
       });
 
-      // 2. Check if user touched a Green Middle Divider Dot
+      // 2. Verificar toque en Punto Verde
       if (!activeHandle) {
-        rowDividers.forEach((div, rIdx) => {
-          if (Math.hypot(div.L.x - pos.x, div.L.y - pos.y) < touchDist) {
-            activeHandle = { type: 'divider', rIdx: rIdx, side: 'L' };
-          } else if (Math.hypot(div.R.x - pos.x, div.R.y - pos.y) < touchDist) {
-            activeHandle = { type: 'divider', rIdx: rIdx, side: 'R' };
+        rowRatios.forEach((ratio, rIdx) => {
+          const ptL = getGreenPoint('L', ratio.tL);
+          const ptR = getGreenPoint('R', ratio.tR);
+          if (Math.hypot(ptL.x - pos.x, ptL.y - pos.y) < touchDist) {
+            activeHandle = { type: 'green', rIdx: rIdx, side: 'L' };
+          } else if (Math.hypot(ptR.x - pos.x, ptR.y - pos.y) < touchDist) {
+            activeHandle = { type: 'green', rIdx: rIdx, side: 'R' };
           }
         });
       }
@@ -746,29 +786,28 @@
       const clampedY = Math.max(0, Math.min(cropCanvas.height, pos.y));
 
       if (activeHandle.type === 'corner') {
-        const oldCorner = { ...corners[activeHandle.idx] };
         corners[activeHandle.idx] = { x: clampedX, y: clampedY };
-        
-        // Shift middle divider handles along with corner movement
-        const deltaX = clampedX - oldCorner.x;
-        const deltaY = clampedY - oldCorner.y;
-        rowDividers.forEach((div, rIdx) => {
-          const t = (rIdx + 1) / gridRows;
-          const weight = (activeHandle.idx === 0 || activeHandle.idx === 1) ? (1 - t) : t;
-          if (activeHandle.idx === 0 || activeHandle.idx === 3) {
-            div.L.x += deltaX * weight;
-            div.L.y += deltaY * weight;
-          } else {
-            div.R.x += deltaX * weight;
-            div.R.y += deltaY * weight;
-          }
-        });
-      } else if (activeHandle.type === 'divider') {
-        const div = rowDividers[activeHandle.rIdx];
+      } else if (activeHandle.type === 'green') {
+        // Proyectar el punto arrastrado estrictamente sobre el segmento recto entre los puntos rojos
+        const [tl, tr, br, bl] = corners;
         if (activeHandle.side === 'L') {
-          div.L = { x: clampedX, y: clampedY };
+          const vx = bl.x - tl.x;
+          const vy = bl.y - tl.y;
+          const lenSq = vx * vx + vy * vy;
+          if (lenSq > 0) {
+            let t = ((clampedX - tl.x) * vx + (clampedY - tl.y) * vy) / lenSq;
+            t = Math.max(0.08, Math.min(0.92, t));
+            rowRatios[activeHandle.rIdx].tL = t;
+          }
         } else {
-          div.R = { x: clampedX, y: clampedY };
+          const vx = br.x - tr.x;
+          const vy = br.y - tr.y;
+          const lenSq = vx * vx + vy * vy;
+          if (lenSq > 0) {
+            let t = ((clampedX - tr.x) * vx + (clampedY - tr.y) * vy) / lenSq;
+            t = Math.max(0.08, Math.min(0.92, t));
+            rowRatios[activeHandle.rIdx].tR = t;
+          }
         }
       }
 
@@ -784,7 +823,7 @@
     window.addEventListener('touchmove', onPointerMove, { passive: false });
     window.addEventListener('touchend', onPointerUp);
 
-    // Dewarp & Extract using Piecewise Homography
+    // Dewarp & Extract
     function cropAndAnimate() {
       updateDimensions();
       const newPageFrames = [];
@@ -864,7 +903,7 @@
 
     function deleteFrame(idx) {
       if (allFrames.length <= 1) {
-        alert("You need at least 1 frame!");
+        alert("¡Debes tener al menos 1 cuadro!");
         return;
       }
       allFrames.splice(idx, 1);
@@ -885,7 +924,7 @@
     function startPlayback() {
       clearInterval(playInterval);
       isPlaying = true;
-      document.getElementById('playBtn').innerText = '⏸️ Pause';
+      document.getElementById('playBtn').innerText = '⏸️ Pausa';
       
       const animCanvas = document.getElementById('animationCanvas');
       const ctx = animCanvas.getContext('2d');
@@ -917,7 +956,7 @@
     // Export JPGs in ZIP
     async function exportJpgZip() {
       const status = document.getElementById('exportStatus');
-      status.innerText = 'Packaging JPG frames into ZIP...';
+      status.innerText = 'Empaquetando imágenes JPG...';
 
       const zip = new JSZip();
       const folder = zip.folder("stopmotion_frames");
@@ -936,10 +975,10 @@
         try {
           await navigator.share({
             files: [zipFile],
-            title: 'Stop Motion Frames',
-            text: 'Here are my stop motion JPG frames!'
+            title: 'Cuadros de Stop Motion',
+            text: '¡Aquí están los cuadros en JPG!'
           });
-          status.innerText = 'ZIP shared successfully!';
+          status.innerText = '¡ZIP compartido con éxito!';
           return;
         } catch(err) { console.log('Share dismissed', err); }
       }
@@ -949,7 +988,7 @@
       a.href = url;
       a.download = "stopmotion_frames.zip";
       a.className = "btn btn-purple";
-      a.innerText = "⬇️ Tap to Download .ZIP (JPGs)";
+      a.innerText = "⬇️ Descargar .ZIP (JPGs)";
       status.innerHTML = '';
       status.appendChild(a);
     }
@@ -1001,7 +1040,7 @@
 
     async function shareVideoOrGif() {
       const status = document.getElementById('exportStatus');
-      status.innerText = 'Preparing video for WhatsApp...';
+      status.innerText = 'Preparando video para WhatsApp...';
 
       const vidData = await createVideoBlob(3);
       if (vidData) {
@@ -1010,24 +1049,24 @@
           try {
             await navigator.share({
               files: [file],
-              title: 'My Stop Motion',
-              text: 'Check out my stop motion animation!'
+              title: 'Mi Stop Motion',
+              text: '¡Mira la animación que hice!'
             });
-            status.innerText = 'Shared successfully!';
+            status.innerText = '¡Compartido con éxito!';
             return;
           } catch(err) { console.log('Share dismissed', err); }
         }
       }
-      status.innerHTML = `<a href="https://api.whatsapp.com/send?text=Check%20my%20stop%20motion!" target="_blank" class="btn btn-wa">Open WhatsApp Web</a><br><small>Tip: Save the video first, then send via chat.</small>`;
+      status.innerHTML = `<a href="https://api.whatsapp.com/send?text=Mira%20mi%20stop%20motion!" target="_blank" class="btn btn-wa">Abrir WhatsApp Web</a><br><small>Tip: Guarda el video primero y luego compártelo.</small>`;
     }
 
     async function exportVideoFile() {
       const status = document.getElementById('exportStatus');
-      status.innerText = 'Rendering video...';
+      status.innerText = 'Procesando video...';
       const vidData = await createVideoBlob(3);
 
       if (!vidData) {
-        status.innerText = 'Video not supported on this browser. Use Save GIF!';
+        status.innerText = 'Video no soportado en este navegador. ¡Usa Guardar GIF!';
         return;
       }
 
@@ -1036,14 +1075,14 @@
       a.href = url;
       a.download = `stopmotion.${vidData.ext}`;
       a.className = 'btn btn-blue';
-      a.innerText = `⬇️ Tap to Download Video .${vidData.ext}`;
+      a.innerText = `⬇️ Descargar Video .${vidData.ext}`;
       status.innerHTML = '';
       status.appendChild(a);
     }
 
     function exportGifFile() {
       const status = document.getElementById('exportStatus');
-      status.innerText = 'Rendering GIF...';
+      status.innerText = 'Generando GIF...';
       const imagesData = allFrames.map(f => f.toDataURL('image/jpeg', 0.9));
 
       gifshot.createGIF({
@@ -1054,9 +1093,9 @@
         numWorkers: 2
       }, function(obj) {
         if (!obj.error) {
-          status.innerHTML = `<a href="${obj.image}" download="stopmotion.gif" class="btn btn-green">⬇️ Tap to Download GIF</a>`;
+          status.innerHTML = `<a href="${obj.image}" download="stopmotion.gif" class="btn btn-green">⬇️ Descargar GIF</a>`;
         } else {
-          status.innerText = 'Could not generate GIF.';
+          status.innerText = 'No se pudo generar el GIF.';
         }
       });
     }
