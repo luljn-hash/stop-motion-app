@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Smart Stop Motion Studio - Individual 3D Squares</title>
+  <title>Smart Stop Motion Studio - Clean Output</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.3.2/gifshot.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
@@ -197,7 +197,6 @@
       margin-top: 12px;
     }
 
-    /* Clean Printable Template: Extra thick 6px borders, 18mm gaps */
     @media print {
       @page { size: auto; margin: 10mm; }
       body * { visibility: hidden; }
@@ -224,7 +223,7 @@
 <body>
 
   <h1>🎬 Smart Stop Motion Studio</h1>
-  <p>Individual 3D perspective detection for each square!</p>
+  <p>Clean stop motion animations with individual 3D square detection!</p>
 
   <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
   <input type="file" id="appendCameraInput" accept="image/*" capture="environment" style="display:none;">
@@ -272,7 +271,7 @@
     </div>
 
     <div style="margin-top: 12px;">
-      <button class="btn btn-outline" onclick="prepareAndPrint()">🖨️ Print Worksheet (Thick 6px Borders)</button>
+      <button class="btn btn-outline" onclick="prepareAndPrint()">🖨️ Print Clean Worksheet</button>
     </div>
     
     <div style="margin-top: 8px;">
@@ -293,7 +292,7 @@
     <canvas id="cropCanvas"></canvas>
 
     <div style="font-size: 0.8rem; color: #666; margin-top: 6px;">
-      💡 <em>Tip: Drag any red dot to adjust a corner, or drag inside a box to move it.</em>
+      💡 <em>Drag red dots to adjust corners, or drag inside a box to move it.</em>
     </div>
 
     <div style="margin-top: 10px;">
@@ -302,7 +301,7 @@
     </div>
   </div>
 
-  <!-- Step 3: Stop Motion Player -->
+  <!-- Step 3: Stop Motion Player (Clean Output) -->
   <div class="card" id="playerCard" style="display:none;">
     <canvas id="animationCanvas"></canvas>
     
@@ -351,9 +350,9 @@
     let loadedImage = null;
     let isAppending = false;
     
-    // Array of independent 3D boxes: [{ corners: [TL, TR, BR, BL], id: 1 }, ...]
+    // Array of individual 3D boxes: [{ corners: [TL, TR, BR, BL] }, ...]
     let boxes = [];
-    let activeInteraction = null; // { type: 'corner', boxIdx, cornerIdx } or { type: 'box', boxIdx, startPos, origCorners }
+    let activeInteraction = null;
 
     let allFrames = [];
     let currentFrameIdx = 0;
@@ -437,7 +436,6 @@
       window.print();
     }
 
-    // Camera Handlers
     document.getElementById('cameraInput').addEventListener('change', function(e) {
       isAppending = false;
       loadImageFile(e.target.files[0]);
@@ -525,7 +523,6 @@
             let rect = cv.boundingRect(approx);
             let asp = rect.width / rect.height;
             if (rect.width >= minBoxW && rect.height >= minBoxH && asp >= 0.65 && asp <= 1.8) {
-              // Extract the 4 corners of this specific box in scaled image coordinates
               let pts = [];
               for (let j = 0; j < 4; j++) {
                 pts.push({
@@ -534,7 +531,6 @@
                 });
               }
 
-              // Order the 4 corners of this individual box in 3D perspective:
               let tl = pts.reduce((min, p) => (p.x + p.y < min.x + min.y ? p : min), pts[0]);
               let br = pts.reduce((max, p) => (p.x + p.y > max.x + max.y ? p : max), pts[0]);
               let tr = pts.reduce((max, p) => (p.x - p.y > max.x - max.y ? p : max), pts[0]);
@@ -554,7 +550,7 @@
           approx.delete();
         }
 
-        // Deduplicate overlapping nested contours (inner vs outer borders)
+        // Deduplicate overlapping nested contours
         let deduped = [];
         rawBoxes.sort((a,b) => b.area - a.area);
         rawBoxes.forEach(b => {
@@ -563,7 +559,6 @@
         });
 
         if (deduped.length >= 2) {
-          // Sort into rows top-to-bottom, then columns left-to-right
           deduped.sort((a, b) => a.cy - b.cy);
           let avgH = deduped.reduce((sum, b) => sum + b.h, 0) / deduped.length;
 
@@ -599,7 +594,6 @@
       return false;
     }
 
-    // Generate fallback boxes
     function generateDefaultGridBoxes() {
       boxes = [];
       if (!loadedImage) return;
@@ -680,7 +674,7 @@
       drawAdjuster();
     }
 
-    // --- DRAW INDIVIDUAL 3D BOXES WITH NUMBER BADGES ---
+    // DRAW OVERLAYS ON EDITOR CANVAS
     function drawAdjuster() {
       cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
       cropCtx.drawImage(loadedImage, 0, 0);
@@ -691,7 +685,7 @@
       boxes.forEach((box, idx) => {
         const [p0, p1, p2, p3] = box.corners;
 
-        // 1. Draw 3D Perspective Quadrilateral Outline
+        // 1. Yellow Outline
         cropCtx.strokeStyle = '#ffeb3b';
         cropCtx.lineWidth = Math.max(3, cropCanvas.width * 0.004);
         cropCtx.beginPath();
@@ -702,7 +696,7 @@
         cropCtx.closePath();
         cropCtx.stroke();
 
-        // 2. Draw Number Badge in Center of Box
+        // 2. Number Badge
         const cx = (p0.x + p1.x + p2.x + p3.x) / 4;
         const cy = (p0.y + p1.y + p2.y + p3.y) / 4;
 
@@ -717,7 +711,7 @@
         cropCtx.textBaseline = 'middle';
         cropCtx.fillText(String(idx + 1), cx, cy);
 
-        // 3. Draw 4 Red Corner Control Dots
+        // 3. 4 Red Corner Dots
         box.corners.forEach(pt => {
           cropCtx.fillStyle = '#ff5722';
           cropCtx.beginPath();
@@ -730,7 +724,6 @@
       });
     }
 
-    // Point in Polygon Test (to detect dragging the inside of a box)
     function isPointInsideQuad(pt, quad) {
       let inside = false;
       for (let i = 0, j = 3; i < 4; j = i++) {
@@ -743,7 +736,6 @@
       return inside;
     }
 
-    // Touch & Pointer Dragging for Individual 3D Boxes
     function getCanvasCoords(e) {
       const rect = cropCanvas.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -759,7 +751,6 @@
       const touchDist = Math.max(35, cropCanvas.width * 0.06);
       activeInteraction = null;
 
-      // 1. Check if user tapped a corner dot on ANY box
       for (let b = 0; b < boxes.length; b++) {
         for (let c = 0; c < 4; c++) {
           if (Math.hypot(boxes[b].corners[c].x - pos.x, boxes[b].corners[c].y - pos.y) < touchDist) {
@@ -770,7 +761,6 @@
         }
       }
 
-      // 2. Check if user tapped inside a box to move the entire box
       for (let b = 0; b < boxes.length; b++) {
         if (isPointInsideQuad(pos, boxes[b].corners)) {
           activeInteraction = {
@@ -820,11 +810,19 @@
     window.addEventListener('touchmove', onPointerMove, { passive: false });
     window.addEventListener('touchend', onPointerUp);
 
-    // Dewarp & Extract EACH Box Independently in 3D Perspective
+    // --- CLEAN EXTRACTION: READS DIRECTLY FROM RAW PHOTO (NO YELLOW/RED OVERLAYS) ---
     function cropAndAnimate() {
       updateDimensions();
       const newPageFrames = [];
-      const srcMat = cv.imread(cropCanvas);
+
+      // Create a pristine, clean canvas containing ONLY the original photo without overlays
+      const cleanCanvas = document.createElement('canvas');
+      cleanCanvas.width = loadedImage.width;
+      cleanCanvas.height = loadedImage.height;
+      const cleanCtx = cleanCanvas.getContext('2d');
+      cleanCtx.drawImage(loadedImage, 0, 0);
+
+      const srcMat = cv.imread(cleanCanvas);
 
       boxes.forEach(box => {
         const [p0, p1, p2, p3] = box.corners;
@@ -948,7 +946,7 @@
       if (isPlaying) startPlayback();
     }
 
-    // Export JPGs in ZIP
+    // Export JPGs in ZIP (Clean drawings)
     async function exportJpgZip() {
       const status = document.getElementById('exportStatus');
       status.innerText = 'Packaging JPG frames into ZIP...';
@@ -988,7 +986,7 @@
       status.appendChild(a);
     }
 
-    // Video Recording
+    // Video Recording (Clean output)
     async function createVideoBlob(loopCount = 3) {
       const recCanvas = document.createElement('canvas');
       recCanvas.width = outWidth;
