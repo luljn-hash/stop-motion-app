@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Post-it Stop Motion</title>
+  <title>Custom Post-it Stop Motion</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.3.2/gifshot.min.js"></script>
   <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
 
@@ -12,6 +12,7 @@
       --primary: #ff5722;
       --secondary: #4caf50;
       --accent: #2196f3;
+      --purple: #9c27b0;
       --bg: #f7f9fc;
       --card: #ffffff;
     }
@@ -25,24 +26,26 @@
       touch-action: manipulation;
     }
     h1 { margin: 6px 0; font-size: 1.5rem; color: #222; }
-    p { margin: 2px 0 12px; color: #666; font-size: 0.9rem; }
+    p { margin: 2px 0 10px; color: #666; font-size: 0.9rem; }
     
     .btn {
       display: inline-block;
       background: var(--primary);
       color: white;
-      font-size: 1rem;
+      font-size: 0.95rem;
       font-weight: bold;
-      padding: 12px 18px;
+      padding: 10px 16px;
       border-radius: 12px;
       border: none;
       cursor: pointer;
-      margin: 6px 3px;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      margin: 4px 2px;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.1);
     }
     .btn-green { background: var(--secondary); }
     .btn-blue { background: var(--accent); }
-    .btn-outline { background: transparent; color: #555; border: 2px solid #ccc; box-shadow: none; }
+    .btn-purple { background: var(--purple); }
+    .btn-outline { background: transparent; color: #444; border: 2px solid #bbb; box-shadow: none; }
+    .btn-sm { padding: 6px 12px; font-size: 0.85rem; border-radius: 8px; }
     
     .card {
       background: var(--card);
@@ -53,12 +56,41 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.06);
     }
 
+    .preset-group {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+      margin: 8px 0;
+    }
+
+    .settings-panel {
+      background: #f0f4f8;
+      border-radius: 12px;
+      padding: 12px;
+      margin: 10px 0;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+    .settings-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 8px 0;
+    }
+    .settings-row input, .settings-row select {
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 0.9rem;
+    }
+
     #cropCanvas {
       width: 100%;
-      max-height: 60vh;
+      max-height: 55vh;
       border-radius: 12px;
       background: #222;
-      touch-action: none; /* Allows smooth dragging on mobile */
+      touch-action: none;
     }
     
     #animationCanvas {
@@ -79,8 +111,8 @@
       margin-top: 8px;
     }
     .frame-thumb {
-      width: 55px;
-      height: 55px;
+      width: 50px;
+      height: 50px;
       border-radius: 8px;
       border: 2px solid #ddd;
       flex-shrink: 0;
@@ -96,7 +128,7 @@
     }
     .controls input[type=range] { width: 110px; }
 
-    /* Print Template for 3x3 inch Post-its */
+    /* Dynamic Print Layout */
     @media print {
       @page { size: auto; margin: 8mm; }
       body * { visibility: hidden; }
@@ -105,19 +137,17 @@
         position: absolute; left: 0; top: 0; width: 100vw;
         display: flex !important; flex-direction: column; align-items: center; justify-content: center;
       }
-      .template-title { font-size: 16pt; font-weight: bold; margin-bottom: 8px; }
-      .boxes-container {
+      .print-title { font-size: 15pt; font-weight: bold; margin-bottom: 8px; }
+      .print-container {
         display: grid !important;
-        grid-template-columns: 76mm 76mm;
-        grid-template-rows: 76mm 76mm 76mm;
-        gap: 8mm;
+        gap: 6mm;
+        justify-content: center;
       }
       .grid-box {
-        width: 76mm; height: 76mm;
         border: 4px solid #000; border-radius: 4px;
         position: relative; box-sizing: border-box;
       }
-      .grid-number { position: absolute; top: 3mm; left: 3mm; font-size: 14pt; font-weight: bold; color: #aaa; }
+      .grid-number { position: absolute; top: 3mm; left: 3mm; font-size: 13pt; font-weight: bold; color: #aaa; }
       .grid-hint { position: absolute; bottom: 3mm; right: 3mm; font-size: 8pt; color: #aaa; }
     }
     #printableGrid { display: none; }
@@ -125,21 +155,62 @@
 </head>
 <body>
 
-  <h1>🎬 Post-it Stop Motion</h1>
-  <p>Stick 6 Post-its, snap a photo, and watch them animate!</p>
+  <h1>🎬 Stop Motion Studio</h1>
+  <p>Stick your Post-its, snap a photo, and watch them animate!</p>
 
-  <!-- Step 1: Upload / Print -->
+  <!-- Step 1: Settings & Capture -->
   <div class="card" id="uploadCard">
-    <button class="btn btn-outline" onclick="window.print()">🖨️ Print 6 Post-it Template</button>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <span style="font-weight: bold; font-size: 0.95rem;">📐 Grid: <span id="gridSummary">2×3 (6 Frames)</span></span>
+      <button class="btn btn-purple btn-sm" onclick="toggleSettings()">⚙️ Customize</button>
+    </div>
+
+    <!-- Collapsible Settings Panel -->
+    <div class="settings-panel" id="settingsPanel" style="display:none;">
+      <div style="font-weight:bold; margin-bottom:6px;">⚡ Quick Presets:</div>
+      <div class="preset-group">
+        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 2, 76, '4 Frames (2×2)')">4 Frames (2×2)</button>
+        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 3, 76, '6 Frames (2×3)')">6 Frames (2×3)</button>
+        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 4, 60, '8 Frames (2×4)')">8 Frames (2×4)</button>
+        <button class="btn btn-outline btn-sm" onclick="setPreset(3, 3, 50, '9 Frames (3×3 Mini)')">9 Mini (3×3)</button>
+      </div>
+
+      <hr style="border:0; border-top:1px solid #ddd; margin:10px 0;">
+
+      <div class="settings-row">
+        <label>Columns (Horizontal):</label>
+        <input type="number" id="colsInput" min="1" max="4" value="2" onchange="onCustomGridChange()">
+      </div>
+      <div class="settings-row">
+        <label>Rows (Vertical):</label>
+        <input type="number" id="rowsInput" min="1" max="5" value="3" onchange="onCustomGridChange()">
+      </div>
+      <div class="settings-row">
+        <label>Post-it Note Size:</label>
+        <select id="sizeSelect" onchange="onCustomGridChange()">
+          <option value="76">Standard 3×3" (76 mm)</option>
+          <option value="50">Mini 2×2" (50 mm)</option>
+          <option value="60">Compact (60 mm)</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-top: 12px;">
+      <button class="btn btn-outline" onclick="prepareAndPrint()">🖨️ Print Matching Worksheet</button>
+    </div>
+    
     <div style="margin-top: 8px;">
-      <label for="cameraInput" class="btn btn-green">📷 Snap Photo / Upload</label>
+      <label for="cameraInput" class="btn btn-green" style="font-size: 1.05rem; padding: 12px 24px;">📷 Snap Photo / Upload</label>
       <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
     </div>
   </div>
 
   <!-- Step 2: Interactive 4-Corner Alignment -->
   <div class="card" id="adjustCard" style="display:none;">
-    <h3>🎯 Drag the 4 circles to fit your paper</h3>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+      <span style="font-weight:bold; font-size: 0.9rem;">🎯 Drag corners to fit</span>
+      <button class="btn btn-purple btn-sm" onclick="toggleSettingsInAdjust()">⚙️ Change Grid</button>
+    </div>
     <canvas id="cropCanvas"></canvas>
     <div style="margin-top: 10px;">
       <button class="btn btn-blue" onclick="cropAndAnimate()">✨ Generate Stop Motion</button>
@@ -166,20 +237,19 @@
     <div id="gifStatus" style="font-size: 0.85rem; margin-top: 6px; color: #666;"></div>
   </div>
 
-  <!-- Printable Sheet -->
+  <!-- Printable Worksheet Container -->
   <div id="printableGrid">
-    <div class="template-title">Stick your 6 Post-it notes inside the boxes ⬇️</div>
-    <div class="boxes-container">
-      <div class="grid-box"><span class="grid-number">1</span><span class="grid-hint">3x3" Post-it</span></div>
-      <div class="grid-box"><span class="grid-number">2</span><span class="grid-hint">3x3" Post-it</span></div>
-      <div class="grid-box"><span class="grid-number">3</span><span class="grid-hint">3x3" Post-it</span></div>
-      <div class="grid-box"><span class="grid-number">4</span><span class="grid-hint">3x3" Post-it</span></div>
-      <div class="grid-box"><span class="grid-number">5</span><span class="grid-hint">3x3" Post-it</span></div>
-      <div class="grid-box"><span class="grid-number">6</span><span class="grid-hint">3x3" Post-it</span></div>
-    </div>
+    <div class="print-title" id="printTitle">Stick Post-it notes inside the boxes ⬇️</div>
+    <div class="print-container" id="printBoxesContainer"></div>
   </div>
 
   <script>
+    // Grid State
+    let gridCols = 2;
+    let gridRows = 3;
+    let boxSizeMm = 76;
+    let currentPresetName = '2×3 (6 Frames)';
+
     let loadedImage = null;
     let corners = [];
     let activeCorner = null;
@@ -193,7 +263,65 @@
     const cropCtx = cropCanvas.getContext('2d');
 
     function onOpenCvReady() {
-      console.log('OpenCV Loaded');
+      console.log('OpenCV ready');
+    }
+
+    // Grid Customization Controls
+    function toggleSettings() {
+      const panel = document.getElementById('settingsPanel');
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function toggleSettingsInAdjust() {
+      toggleSettings();
+      document.getElementById('uploadCard').style.display = 'block';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function setPreset(cols, rows, size, name) {
+      gridCols = cols;
+      gridRows = rows;
+      boxSizeMm = size;
+      currentPresetName = name;
+      document.getElementById('colsInput').value = cols;
+      document.getElementById('rowsInput').value = rows;
+      document.getElementById('sizeSelect').value = size;
+      updateGridSummary();
+      if (loadedImage) drawAdjuster();
+    }
+
+    function onCustomGridChange() {
+      gridCols = Math.max(1, Math.min(5, parseInt(document.getElementById('colsInput').value) || 2));
+      gridRows = Math.max(1, Math.min(6, parseInt(document.getElementById('rowsInput').value) || 3));
+      boxSizeMm = parseInt(document.getElementById('sizeSelect').value) || 76;
+      currentPresetName = `${gridCols}×${gridRows} (${gridCols * gridRows} Frames)`;
+      updateGridSummary();
+      if (loadedImage) drawAdjuster();
+    }
+
+    function updateGridSummary() {
+      document.getElementById('gridSummary').innerText = `${currentPresetName} • ${boxSizeMm}mm`;
+    }
+
+    // Dynamic Print Generator
+    function prepareAndPrint() {
+      const container = document.getElementById('printBoxesContainer');
+      container.innerHTML = '';
+      container.style.gridTemplateColumns = `repeat(${gridCols}, ${boxSizeMm}mm)`;
+      container.style.gridTemplateRows = `repeat(${gridRows}, ${boxSizeMm}mm)`;
+
+      const totalBoxes = gridCols * gridRows;
+      document.getElementById('printTitle').innerText = `Stick ${totalBoxes} Post-it notes (${boxSizeMm}×${boxSizeMm}mm) inside ⬇️`;
+
+      for (let i = 1; i <= totalBoxes; i++) {
+        const box = document.createElement('div');
+        box.className = 'grid-box';
+        box.style.width = `${boxSizeMm}mm`;
+        box.style.height = `${boxSizeMm}mm`;
+        box.innerHTML = `<span class="grid-number">${i}</span><span class="grid-hint">${boxSizeMm}×${boxSizeMm}mm</span>`;
+        container.appendChild(box);
+      }
+      window.print();
     }
 
     // Photo uploaded
@@ -220,20 +348,19 @@
       cropCanvas.width = loadedImage.width;
       cropCanvas.height = loadedImage.height;
 
-      // Default corners initialized with 8% margin
       const w = loadedImage.width;
       const h = loadedImage.height;
       corners = [
-        { x: w * 0.10, y: h * 0.10 }, // Top-Left
-        { x: w * 0.90, y: h * 0.10 }, // Top-Right
-        { x: w * 0.90, y: h * 0.90 }, // Bottom-Right
-        { x: w * 0.10, y: h * 0.90 }  // Bottom-Left
+        { x: w * 0.10, y: h * 0.10 },
+        { x: w * 0.90, y: h * 0.10 },
+        { x: w * 0.90, y: h * 0.90 },
+        { x: w * 0.10, y: h * 0.90 }
       ];
 
       drawAdjuster();
     }
 
-    // Draw image + 4 corner pins + 6-box overlay
+    // Draw image + 4 corner pins + dynamic sub-boxes
     function drawAdjuster() {
       cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
       cropCtx.drawImage(loadedImage, 0, 0);
@@ -249,16 +376,21 @@
       cropCtx.closePath();
       cropCtx.stroke();
 
-      // Draw 6 inner sub-boxes (2 cols x 3 rows)
-      cropCtx.strokeStyle = 'rgba(255, 235, 59, 0.85)';
+      // Dynamic sub-boxes
+      cropCtx.strokeStyle = 'rgba(255, 235, 59, 0.9)';
       cropCtx.lineWidth = Math.max(2, cropCanvas.width * 0.003);
 
-      for (let r = 0; r < 3; r++) {
-        for (let c = 0; c < 2; c++) {
-          const u0 = c === 0 ? 0.02 : 0.52;
-          const u1 = c === 0 ? 0.48 : 0.98;
-          const v0 = (r * 0.33) + 0.02;
-          const v1 = ((r + 1) * 0.33) - 0.02;
+      const colW = 1.0 / gridCols;
+      const rowH = 1.0 / gridRows;
+      const padU = colW * 0.05;
+      const padV = rowH * 0.05;
+
+      for (let r = 0; r < gridRows; r++) {
+        for (let c = 0; c < gridCols; c++) {
+          const u0 = c * colW + padU;
+          const u1 = (c + 1) * colW - padU;
+          const v0 = r * rowH + padV;
+          const v1 = (r + 1) * rowH - padV;
 
           const p0 = interp(u0, v0);
           const p1 = interp(u1, v0);
@@ -275,9 +407,9 @@
         }
       }
 
-      // Draw corner grab handles
+      // Draw 4 corner touch handles
       const handleRadius = Math.max(16, cropCanvas.width * 0.025);
-      corners.forEach((pt, idx) => {
+      corners.forEach(pt => {
         cropCtx.fillStyle = '#ff5722';
         cropCtx.beginPath();
         cropCtx.arc(pt.x, pt.y, handleRadius, 0, Math.PI * 2);
@@ -296,7 +428,7 @@
       };
     }
 
-    // Touch & Mouse Dragging for the 4 Pins
+    // Touch and Drag handling
     function getCanvasCoords(e) {
       const rect = cropCanvas.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -315,8 +447,7 @@
       activeCorner = null;
 
       corners.forEach((pt, idx) => {
-        const dist = Math.hypot(pt.x - pos.x, pt.y - pos.y);
-        if (dist < touchDist) {
+        if (Math.hypot(pt.x - pos.x, pt.y - pos.y) < touchDist) {
           activeCorner = idx;
         }
       });
@@ -343,17 +474,22 @@
     window.addEventListener('touchmove', onPointerMove, { passive: false });
     window.addEventListener('touchend', onPointerUp);
 
-    // Crop frames using perspective dewarp
+    // Dynamic Perspective Crop
     function cropAndAnimate() {
       frames = [];
       const srcMat = cv.imread(cropCanvas);
 
-      for (let r = 0; r < 3; r++) {
-        for (let c = 0; c < 2; c++) {
-          const u0 = c === 0 ? 0.02 : 0.52;
-          const u1 = c === 0 ? 0.48 : 0.98;
-          const v0 = (r * 0.33) + 0.02;
-          const v1 = ((r + 1) * 0.33) - 0.02;
+      const colW = 1.0 / gridCols;
+      const rowH = 1.0 / gridRows;
+      const padU = colW * 0.05;
+      const padV = rowH * 0.05;
+
+      for (let r = 0; r < gridRows; r++) {
+        for (let c = 0; c < gridCols; c++) {
+          const u0 = c * colW + padU;
+          const u1 = (c + 1) * colW - padU;
+          const v0 = r * rowH + padV;
+          const v1 = (r + 1) * rowH - padV;
 
           const p0 = interp(u0, v0);
           const p1 = interp(u1, v0);
@@ -466,7 +602,7 @@
         numWorkers: 2
       }, function(obj) {
         if (!obj.error) {
-          status.innerHTML = `<a href="${obj.image}" download="postit_animation.gif" class="btn btn-green" style="margin-top:8px;">⬇️ Tap Here to Save GIF</a>`;
+          status.innerHTML = `<a href="${obj.image}" download="stopmotion.gif" class="btn btn-green" style="margin-top:8px;">⬇️ Tap Here to Save GIF</a>`;
         } else {
           status.innerText = 'Could not generate GIF.';
         }
