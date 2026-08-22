@@ -4,28 +4,28 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Post-it Stop Motion</title>
-  <!-- GIF creation library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.3.2/gifshot.min.js"></script>
-  <!-- OpenCV.js for automatic square detection -->
   <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
 
   <style>
     :root {
       --primary: #ff5722;
       --secondary: #4caf50;
+      --accent: #2196f3;
       --bg: #f7f9fc;
       --card: #ffffff;
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       margin: 0;
-      padding: 16px;
+      padding: 12px;
       background-color: var(--bg);
       color: #333;
       text-align: center;
+      touch-action: manipulation;
     }
-    h1 { margin: 8px 0; font-size: 1.6rem; color: #222; }
-    p { margin: 4px 0 16px; color: #666; font-size: 0.95rem; }
+    h1 { margin: 6px 0; font-size: 1.5rem; color: #222; }
+    p { margin: 2px 0 12px; color: #666; font-size: 0.9rem; }
     
     .btn {
       display: inline-block;
@@ -33,30 +33,37 @@
       color: white;
       font-size: 1rem;
       font-weight: bold;
-      padding: 12px 20px;
+      padding: 12px 18px;
       border-radius: 12px;
       border: none;
       cursor: pointer;
-      margin: 6px 4px;
+      margin: 6px 3px;
       box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-      touch-action: manipulation;
     }
     .btn-green { background: var(--secondary); }
-    .btn-blue { background: #2196f3; }
+    .btn-blue { background: var(--accent); }
     .btn-outline { background: transparent; color: #555; border: 2px solid #ccc; box-shadow: none; }
     
     .card {
       background: var(--card);
       border-radius: 16px;
-      padding: 16px;
-      margin: 12px auto;
+      padding: 14px;
+      margin: 10px auto;
       max-width: 480px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+
+    #cropCanvas {
+      width: 100%;
+      max-height: 60vh;
+      border-radius: 12px;
+      background: #222;
+      touch-action: none; /* Allows smooth dragging on mobile */
     }
     
     #animationCanvas {
       width: 100%;
-      max-width: 320px;
+      max-width: 300px;
       aspect-ratio: 1 / 1;
       background: #eee;
       border-radius: 12px;
@@ -66,14 +73,14 @@
 
     .frame-strip {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       overflow-x: auto;
-      padding: 10px 0;
-      margin-top: 10px;
+      padding: 8px 0;
+      margin-top: 8px;
     }
     .frame-thumb {
-      width: 60px;
-      height: 60px;
+      width: 55px;
+      height: 55px;
       border-radius: 8px;
       border: 2px solid #ddd;
       flex-shrink: 0;
@@ -84,65 +91,34 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      gap: 12px;
-      margin-top: 12px;
+      gap: 10px;
+      margin-top: 10px;
     }
-    .controls input[type=range] { width: 120px; }
+    .controls input[type=range] { width: 110px; }
 
-    /* --- Exact Post-it Template Print Styling (3x3 inch / 76x76mm) --- */
+    /* Print Template for 3x3 inch Post-its */
     @media print {
-      @page {
-        size: auto;
-        margin: 8mm;
-      }
+      @page { size: auto; margin: 8mm; }
       body * { visibility: hidden; }
       #printableGrid, #printableGrid * { visibility: visible; }
       #printableGrid {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100vw;
-        display: flex !important;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
+        position: absolute; left: 0; top: 0; width: 100vw;
+        display: flex !important; flex-direction: column; align-items: center; justify-content: center;
       }
-      .template-title {
-        font-size: 16pt;
-        font-weight: bold;
-        margin-bottom: 8px;
-        color: #000;
-      }
+      .template-title { font-size: 16pt; font-weight: bold; margin-bottom: 8px; }
       .boxes-container {
         display: grid !important;
         grid-template-columns: 76mm 76mm;
         grid-template-rows: 76mm 76mm 76mm;
         gap: 8mm;
-        justify-content: center;
       }
       .grid-box {
-        width: 76mm;
-        height: 76mm;
-        border: 4px solid #000; /* Bold outline for auto-detection */
-        border-radius: 4px;
-        position: relative;
-        box-sizing: border-box;
+        width: 76mm; height: 76mm;
+        border: 4px solid #000; border-radius: 4px;
+        position: relative; box-sizing: border-box;
       }
-      .grid-number {
-        position: absolute;
-        top: 3mm;
-        left: 3mm;
-        font-size: 14pt;
-        font-weight: bold;
-        color: #bbb;
-      }
-      .grid-hint {
-        position: absolute;
-        bottom: 3mm;
-        right: 3mm;
-        font-size: 8pt;
-        color: #bbb;
-      }
+      .grid-number { position: absolute; top: 3mm; left: 3mm; font-size: 14pt; font-weight: bold; color: #aaa; }
+      .grid-hint { position: absolute; bottom: 3mm; right: 3mm; font-size: 8pt; color: #aaa; }
     }
     #printableGrid { display: none; }
   </style>
@@ -150,19 +126,28 @@
 <body>
 
   <h1>🎬 Post-it Stop Motion</h1>
-  <p>Stick 6 Post-it notes, snap a photo, and watch them animate!</p>
+  <p>Stick 6 Post-its, snap a photo, and watch them animate!</p>
 
-  <!-- Step 1: Print / Capture -->
-  <div class="card">
+  <!-- Step 1: Upload / Print -->
+  <div class="card" id="uploadCard">
     <button class="btn btn-outline" onclick="window.print()">🖨️ Print 6 Post-it Template</button>
-    <div style="margin-top: 10px;">
+    <div style="margin-top: 8px;">
       <label for="cameraInput" class="btn btn-green">📷 Snap Photo / Upload</label>
       <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
     </div>
-    <div id="cvStatus" style="font-size: 0.8rem; color: #888; margin-top: 6px;">Loading detector...</div>
   </div>
 
-  <!-- Step 2: Stop Motion Player -->
+  <!-- Step 2: Interactive 4-Corner Alignment -->
+  <div class="card" id="adjustCard" style="display:none;">
+    <h3>🎯 Drag the 4 circles to fit your paper</h3>
+    <canvas id="cropCanvas"></canvas>
+    <div style="margin-top: 10px;">
+      <button class="btn btn-blue" onclick="cropAndAnimate()">✨ Generate Stop Motion</button>
+      <button class="btn btn-outline" onclick="resetToUpload()">🔄 Retake</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Animation Player -->
   <div class="card" id="playerCard" style="display:none;">
     <canvas id="animationCanvas" width="500" height="500"></canvas>
     
@@ -172,14 +157,16 @@
       <input type="range" id="fpsSlider" min="2" max="15" value="6" oninput="updateFps(this.value)">
     </div>
 
-    <!-- Thumbnails -->
     <div class="frame-strip" id="frameStrip"></div>
 
-    <button class="btn btn-green" id="exportBtn" onclick="exportGif()" style="margin-top: 12px;">💾 Save as GIF</button>
+    <div>
+      <button class="btn btn-green" onclick="exportGif()">💾 Save as GIF</button>
+      <button class="btn btn-outline" onclick="backToAdjust()">✏️ Adjust Grid</button>
+    </div>
     <div id="gifStatus" style="font-size: 0.85rem; margin-top: 6px; color: #666;"></div>
   </div>
 
-  <!-- Printable Post-it Template (Visible only when printing) -->
+  <!-- Printable Sheet -->
   <div id="printableGrid">
     <div class="template-title">Stick your 6 Post-it notes inside the boxes ⬇️</div>
     <div class="boxes-container">
@@ -193,130 +180,223 @@
   </div>
 
   <script>
-    let openCvLoaded = false;
+    let loadedImage = null;
+    let corners = [];
+    let activeCorner = null;
     let frames = [];
     let currentFrameIdx = 0;
     let isPlaying = false;
     let fps = 6;
     let playInterval = null;
 
+    const cropCanvas = document.getElementById('cropCanvas');
+    const cropCtx = cropCanvas.getContext('2d');
+
     function onOpenCvReady() {
-      openCvLoaded = true;
-      document.getElementById('cvStatus').innerText = '✨ Detector ready!';
+      console.log('OpenCV Loaded');
     }
 
-    // Photo input
+    // Photo uploaded
     document.getElementById('cameraInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
 
       const reader = new FileReader();
       reader.onload = function(event) {
-        const img = new Image();
-        img.onload = function() {
-          processImage(img);
+        loadedImage = new Image();
+        loadedImage.onload = function() {
+          setupAdjuster();
         };
-        img.src = event.target.result;
+        loadedImage.src = event.target.result;
       };
       reader.readAsDataURL(file);
     });
 
-    function processImage(img) {
-      frames = [];
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0);
+    function setupAdjuster() {
+      document.getElementById('uploadCard').style.display = 'none';
+      document.getElementById('playerCard').style.display = 'none';
+      document.getElementById('adjustCard').style.display = 'block';
 
-      if (openCvLoaded) {
-        try {
-          frames = detectSquaresWithOpenCV(canvas, img);
-        } catch (err) {
-          console.warn("OpenCV fallback to grid slice", err);
-          frames = sliceGrid(img, 2, 3);
-        }
-      } else {
-        frames = sliceGrid(img, 2, 3);
-      }
+      cropCanvas.width = loadedImage.width;
+      cropCanvas.height = loadedImage.height;
 
-      if (frames.length === 0) {
-        frames = sliceGrid(img, 2, 3);
-      }
+      // Default corners initialized with 8% margin
+      const w = loadedImage.width;
+      const h = loadedImage.height;
+      corners = [
+        { x: w * 0.10, y: h * 0.10 }, // Top-Left
+        { x: w * 0.90, y: h * 0.10 }, // Top-Right
+        { x: w * 0.90, y: h * 0.90 }, // Bottom-Right
+        { x: w * 0.10, y: h * 0.90 }  // Bottom-Left
+      ];
 
-      showPlayer();
+      drawAdjuster();
     }
 
-    function detectSquaresWithOpenCV(canvas, img) {
-      let src = cv.imread(canvas);
-      let gray = new cv.Mat();
-      let thresh = new cv.Mat();
-      let contours = new cv.MatVector();
-      let hierarchy = new cv.Mat();
+    // Draw image + 4 corner pins + 6-box overlay
+    function drawAdjuster() {
+      cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+      cropCtx.drawImage(loadedImage, 0, 0);
 
-      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
-      cv.GaussianBlur(gray, gray, new cv.Size(5, 5), 0);
-      cv.adaptiveThreshold(gray, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 15, 3);
-      cv.findContours(thresh, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+      // Draw outer quad
+      cropCtx.strokeStyle = '#2196f3';
+      cropCtx.lineWidth = Math.max(4, cropCanvas.width * 0.005);
+      cropCtx.beginPath();
+      cropCtx.moveTo(corners[0].x, corners[0].y);
+      cropCtx.lineTo(corners[1].x, corners[1].y);
+      cropCtx.lineTo(corners[2].x, corners[2].y);
+      cropCtx.lineTo(corners[3].x, corners[3].y);
+      cropCtx.closePath();
+      cropCtx.stroke();
 
-      let detected = [];
-      for (let i = 0; i < contours.size(); ++i) {
-        let cnt = contours.get(i);
-        let approx = new cv.Mat();
-        let perimeter = cv.arcLength(cnt, true);
-        cv.approxPolyDP(cnt, approx, 0.03 * perimeter, true);
+      // Draw 6 inner sub-boxes (2 cols x 3 rows)
+      cropCtx.strokeStyle = 'rgba(255, 235, 59, 0.85)';
+      cropCtx.lineWidth = Math.max(2, cropCanvas.width * 0.003);
 
-        let area = cv.contourArea(cnt);
-        if (approx.rows === 4 && area > (canvas.width * canvas.height * 0.015)) {
-          let rect = cv.boundingRect(approx);
-          let aspect = rect.width / rect.height;
-          if (aspect >= 0.75 && aspect <= 1.3) {
-            detected.push({ x: rect.x, y: rect.y, w: rect.width, h: rect.height });
-          }
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 2; c++) {
+          const u0 = c === 0 ? 0.02 : 0.52;
+          const u1 = c === 0 ? 0.48 : 0.98;
+          const v0 = (r * 0.33) + 0.02;
+          const v1 = ((r + 1) * 0.33) - 0.02;
+
+          const p0 = interp(u0, v0);
+          const p1 = interp(u1, v0);
+          const p2 = interp(u1, v1);
+          const p3 = interp(u0, v1);
+
+          cropCtx.beginPath();
+          cropCtx.moveTo(p0.x, p0.y);
+          cropCtx.lineTo(p1.x, p1.y);
+          cropCtx.lineTo(p2.x, p2.y);
+          cropCtx.lineTo(p3.x, p3.y);
+          cropCtx.closePath();
+          cropCtx.stroke();
         }
-        approx.delete();
       }
 
-      src.delete(); gray.delete(); thresh.delete(); contours.delete(); hierarchy.delete();
-
-      if (detected.length < 2) return [];
-
-      detected.sort((a, b) => (Math.floor(a.y / 150) - Math.floor(b.y / 150)) || (a.x - b.x));
-
-      return detected.map(box => {
-        let frameCanvas = document.createElement('canvas');
-        frameCanvas.width = 400;
-        frameCanvas.height = 400;
-        let fCtx = frameCanvas.getContext('2d');
-        fCtx.drawImage(img, box.x, box.y, box.w, box.h, 0, 0, 400, 400);
-        return frameCanvas;
+      // Draw corner grab handles
+      const handleRadius = Math.max(16, cropCanvas.width * 0.025);
+      corners.forEach((pt, idx) => {
+        cropCtx.fillStyle = '#ff5722';
+        cropCtx.beginPath();
+        cropCtx.arc(pt.x, pt.y, handleRadius, 0, Math.PI * 2);
+        cropCtx.fill();
+        cropCtx.strokeStyle = '#ffffff';
+        cropCtx.lineWidth = 3;
+        cropCtx.stroke();
       });
     }
 
-    function sliceGrid(img, cols, rows) {
-      let result = [];
-      let cellW = img.width / cols;
-      let cellH = img.height / rows;
-
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          let fCanvas = document.createElement('canvas');
-          fCanvas.width = 400;
-          fCanvas.height = 400;
-          let fCtx = fCanvas.getContext('2d');
-          fCtx.drawImage(img, c * cellW, r * cellH, cellW, cellH, 0, 0, 400, 400);
-          result.push(fCanvas);
-        }
-      }
-      return result;
+    function interp(u, v) {
+      const [tl, tr, br, bl] = corners;
+      return {
+        x: (1-u)*(1-v)*tl.x + u*(1-v)*tr.x + u*v*br.x + (1-u)*v*bl.x,
+        y: (1-u)*(1-v)*tl.y + u*(1-v)*tr.y + u*v*br.y + (1-u)*v*bl.y
+      };
     }
 
-    function showPlayer() {
+    // Touch & Mouse Dragging for the 4 Pins
+    function getCanvasCoords(e) {
+      const rect = cropCanvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const scaleX = cropCanvas.width / rect.width;
+      const scaleY = cropCanvas.height / rect.height;
+      return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
+      };
+    }
+
+    function onPointerDown(e) {
+      const pos = getCanvasCoords(e);
+      const touchDist = Math.max(35, cropCanvas.width * 0.06);
+      activeCorner = null;
+
+      corners.forEach((pt, idx) => {
+        const dist = Math.hypot(pt.x - pos.x, pt.y - pos.y);
+        if (dist < touchDist) {
+          activeCorner = idx;
+        }
+      });
+      if (activeCorner !== null) e.preventDefault();
+    }
+
+    function onPointerMove(e) {
+      if (activeCorner === null) return;
+      e.preventDefault();
+      const pos = getCanvasCoords(e);
+      corners[activeCorner] = {
+        x: Math.max(0, Math.min(cropCanvas.width, pos.x)),
+        y: Math.max(0, Math.min(cropCanvas.height, pos.y))
+      };
+      drawAdjuster();
+    }
+
+    function onPointerUp() { activeCorner = null; }
+
+    cropCanvas.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('mousemove', onPointerMove);
+    window.addEventListener('mouseup', onPointerUp);
+    cropCanvas.addEventListener('touchstart', onPointerDown, { passive: false });
+    window.addEventListener('touchmove', onPointerMove, { passive: false });
+    window.addEventListener('touchend', onPointerUp);
+
+    // Crop frames using perspective dewarp
+    function cropAndAnimate() {
+      frames = [];
+      const srcMat = cv.imread(cropCanvas);
+
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 2; c++) {
+          const u0 = c === 0 ? 0.02 : 0.52;
+          const u1 = c === 0 ? 0.48 : 0.98;
+          const v0 = (r * 0.33) + 0.02;
+          const v1 = ((r + 1) * 0.33) - 0.02;
+
+          const p0 = interp(u0, v0);
+          const p1 = interp(u1, v0);
+          const p2 = interp(u1, v1);
+          const p3 = interp(u0, v1);
+
+          let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
+            p0.x, p0.y,
+            p1.x, p1.y,
+            p2.x, p2.y,
+            p3.x, p3.y
+          ]);
+
+          const size = 400;
+          let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
+            0, 0,
+            size, 0,
+            size, size,
+            0, size
+          ]);
+
+          let M = cv.getPerspectiveTransform(srcTri, dstTri);
+          let dst = new cv.Mat();
+          let dsize = new cv.Size(size, size);
+          cv.warpPerspective(srcMat, dst, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+
+          let fCanvas = document.createElement('canvas');
+          fCanvas.width = size;
+          fCanvas.height = size;
+          cv.imshow(fCanvas, dst);
+          frames.push(fCanvas);
+
+          srcTri.delete(); dstTri.delete(); M.delete(); dst.delete();
+        }
+      }
+      srcMat.delete();
+
+      document.getElementById('adjustCard').style.display = 'none';
       document.getElementById('playerCard').style.display = 'block';
+
       const strip = document.getElementById('frameStrip');
       strip.innerHTML = '';
-
-      frames.forEach((fCanvas) => {
+      frames.forEach(fCanvas => {
         let imgThumb = document.createElement('img');
         imgThumb.src = fCanvas.toDataURL();
         imgThumb.className = 'frame-thumb';
@@ -324,6 +404,20 @@
       });
 
       startPlayback();
+    }
+
+    function backToAdjust() {
+      clearInterval(playInterval);
+      document.getElementById('playerCard').style.display = 'none';
+      document.getElementById('adjustCard').style.display = 'block';
+    }
+
+    function resetToUpload() {
+      clearInterval(playInterval);
+      document.getElementById('adjustCard').style.display = 'none';
+      document.getElementById('playerCard').style.display = 'none';
+      document.getElementById('uploadCard').style.display = 'block';
+      document.getElementById('cameraInput').value = '';
     }
 
     function startPlayback() {
