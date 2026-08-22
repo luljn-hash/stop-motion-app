@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Smart Stop Motion Studio - Clean Output</title>
+  <title>Smart Stop Motion Studio</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.3.2/gifshot.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
@@ -197,24 +197,44 @@
       margin-top: 12px;
     }
 
+    /* --- IMPRESIÓN CORREGIDA: Sin cortes, márgenes seguros de 15mm --- */
     @media print {
-      @page { size: auto; margin: 10mm; }
-      body * { visibility: hidden; }
-      #printableGrid, #printableGrid * { visibility: visible; }
+      @page {
+        size: portrait;
+        margin: 15mm;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+      }
+      body * {
+        display: none !important;
+      }
+      #printableGrid, #printableGrid * {
+        display: block !important;
+      }
       #printableGrid {
-        position: absolute; left: 0; top: 0; width: 100vw; height: 100vh;
-        display: flex !important; flex-direction: column; align-items: center; justify-content: center;
+        display: flex !important;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: 85vh;
+        margin: 0 auto;
+        box-sizing: border-box;
       }
-      .print-container { 
-        display: grid !important; 
-        gap: 18mm; 
-        justify-content: center; 
+      .print-container {
+        display: grid !important;
+        margin: auto;
+        justify-content: center;
+        align-content: center;
+        box-sizing: border-box;
       }
-      .grid-box { 
-        border: 6px solid #000; 
-        border-radius: 4px; 
-        position: relative; 
-        box-sizing: border-box; 
+      .grid-box {
+        box-sizing: border-box;
+        border-radius: 4px;
+        background: #ffffff;
       }
     }
     #printableGrid { display: none; }
@@ -223,108 +243,128 @@
 <body>
 
   <h1>🎬 Smart Stop Motion Studio</h1>
-  <p>Clean stop motion animations with individual 3D square detection!</p>
+  <p>Crea animaciones cuadrando dibujos en perspectiva 3D.</p>
 
+  <!-- Entradas de Cámara y Galería -->
   <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
+  <input type="file" id="galleryInput" accept="image/*" style="display:none;">
   <input type="file" id="appendCameraInput" accept="image/*" capture="environment" style="display:none;">
+  <input type="file" id="appendGalleryInput" accept="image/*" style="display:none;">
 
-  <!-- Step 1: Settings & Capture -->
+  <!-- Paso 1: Configuración y Selección de Foto -->
   <div class="card" id="uploadCard">
     <label class="toggle-box">
       <input type="checkbox" id="autoDetectToggle" checked>
-      <span>✨ Auto-Detect Individual 3D Squares</span>
+      <span>✨ Auto-Detectar Cuadros en 3D</span>
     </label>
 
     <div style="display: flex; justify-content: space-between; align-items: center;">
-      <span style="font-weight: bold; font-size: 0.95rem;">📐 Grid: <span id="gridSummary">2×3 (6 Frames)</span></span>
-      <button class="btn btn-purple btn-sm" onclick="toggleSettings()">⚙️ Customize</button>
+      <span style="font-weight: bold; font-size: 0.95rem;">📐 Cuadrícula: <span id="gridSummary">2×3 (6 Cuadros)</span></span>
+      <button class="btn btn-purple btn-sm" onclick="toggleSettings()">⚙️ Personalizar</button>
     </div>
 
+    <!-- Panel de Personalización -->
     <div class="settings-panel" id="settingsPanel" style="display:none;">
-      <div style="font-weight:bold; margin-bottom:6px;">⚡ Quick Presets:</div>
+      <div style="font-weight:bold; margin-bottom:6px;">⚡ Opciones Rápidas:</div>
       <div class="preset-group">
-        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 3, 1.0, '6 Square (2×3)')">🟨 6 Square (2×3)</button>
-        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 2, 1.0, '4 Square (2×2)')">🟨 4 Square (2×2)</button>
-        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 3, 1.85, '6 Cinema (1.85:1)')">🎞️ 6 Cinema (1.85:1)</button>
-        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 4, 1.85, '8 Cinema (1.85:1)')">🎞️ 8 Cinema (1.85:1)</button>
+        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 3, 1.0, '6 Cuadros (2×3)')">🟨 6 Cuadros (2×3)</button>
+        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 2, 1.0, '4 Cuadros (2×2)')">🟨 4 Cuadros (2×2)</button>
+        <button class="btn btn-outline btn-sm" onclick="setPreset(3, 4, 1.85, '12 Cuadros (3×4)')">🎞️ 12 Cuadros (3×4)</button>
+        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 4, 1.85, '8 Cine (2×4)')">🎞️ 8 Cine (2×4)</button>
       </div>
       <hr style="border:0; border-top:1px solid #ddd; margin:10px 0;">
       
       <div class="settings-row">
-        <label><strong>Frame Format:</strong></label>
+        <label><strong>Formato:</strong></label>
         <select id="ratioSelect" onchange="onCustomGridChange()">
-          <option value="1.0" selected>1:1 Square (Post-it)</option>
-          <option value="1.85">1.85:1 Cinema Widescreen</option>
+          <option value="1.0" selected>1:1 Cuadrado (Post-it)</option>
+          <option value="1.85">1.85:1 Cine Widescreen</option>
           <option value="1.777">16:9 Video</option>
-          <option value="1.333">4:3 TV</option>
+          <option value="1.333">4:3 TV Estándar</option>
         </select>
       </div>
 
       <div class="settings-row">
-        <label>Columns (Horizontal):</label>
-        <input type="number" id="colsInput" min="1" max="4" value="2" onchange="onCustomGridChange()">
+        <label>Columnas (Horizontal):</label>
+        <input type="number" id="colsInput" min="1" max="5" value="2" onchange="onCustomGridChange()">
       </div>
       <div class="settings-row">
-        <label>Rows (Vertical):</label>
-        <input type="number" id="rowsInput" min="1" max="5" value="3" onchange="onCustomGridChange()">
+        <label>Filas (Vertical):</label>
+        <input type="number" id="rowsInput" min="1" max="6" value="3" onchange="onCustomGridChange()">
+      </div>
+
+      <!-- Control de Grosor de Borde Imprimible -->
+      <div class="settings-row">
+        <label>Grosor del Borde Impreso:</label>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input type="range" id="borderWidthInput" min="2" max="14" value="6" oninput="onBorderSliderChange(this.value)">
+          <span id="borderWidthVal" style="font-weight:bold; width:35px;">6px</span>
+        </div>
       </div>
     </div>
 
     <div style="margin-top: 12px;">
-      <button class="btn btn-outline" onclick="prepareAndPrint()">🖨️ Print Clean Worksheet</button>
+      <button class="btn btn-outline" onclick="prepareAndPrint()">🖨️ Imprimir Plantilla</button>
     </div>
     
-    <div style="margin-top: 8px;">
-      <label for="cameraInput" class="btn btn-green" style="font-size: 1.05rem; padding: 12px 24px;">📷 Snap Photo / Page 1</label>
+    <!-- Botones: Tomar Foto o Subir de Galería -->
+    <div style="display: flex; gap: 8px; justify-content: center; margin-top: 10px;">
+      <label for="cameraInput" class="btn btn-green" style="flex: 1; padding: 12px 10px;">📷 Tomar Foto</label>
+      <label for="galleryInput" class="btn btn-blue" style="flex: 1; padding: 12px 10px;">🖼️ Galería / Fotos</label>
     </div>
   </div>
 
-  <!-- Step 2: Interactive Individual 3D Boxes Editor -->
+  <!-- Paso 2: Editor de Cuadros en 3D -->
   <div class="card" id="adjustCard" style="display:none;">
-    <div class="status-banner" id="snapStatusMsg" style="background:#e8f5e9; color:#2e7d32;">✨ Detected squares in 3D perspective!</div>
+    <div class="status-banner" id="snapStatusMsg" style="background:#e8f5e9; color:#2e7d32;">✨ Cuadros detectados en 3D.</div>
     
     <div class="adjust-toolbar">
-      <button class="btn btn-purple btn-sm" onclick="triggerAutoDetect()">⚡ Re-Detect</button>
-      <button class="btn btn-outline btn-sm" onclick="addNewBox()">➕ Add Box</button>
-      <button class="btn btn-outline btn-sm" onclick="removeLastBox()">➖ Remove Box</button>
+      <button class="btn btn-purple btn-sm" onclick="triggerAutoDetect()">⚡ Re-Detectar</button>
+      <button class="btn btn-outline btn-sm" onclick="addNewBox()">➕ Añadir Cuadro</button>
+      <button class="btn btn-outline btn-sm" onclick="removeLastBox()">➖ Quitar</button>
     </div>
 
     <canvas id="cropCanvas"></canvas>
 
     <div style="font-size: 0.8rem; color: #666; margin-top: 6px;">
-      💡 <em>Drag red dots to adjust corners, or drag inside a box to move it.</em>
+      💡 <em>Arrastra los puntos rojos para ajustar esquinas, o el centro para mover el cuadro.</em>
     </div>
 
     <div style="margin-top: 10px;">
-      <button class="btn btn-blue" id="confirmCropBtn" onclick="cropAndAnimate()">✨ Generate Stop Motion</button>
-      <button class="btn btn-outline" onclick="cancelAdjust()">🔄 Retake</button>
+      <button class="btn btn-blue" id="confirmCropBtn" onclick="cropAndAnimate()">✨ Generar Stop Motion</button>
+      <button class="btn btn-outline" onclick="cancelAdjust()">🔄 Elegir Otra</button>
     </div>
   </div>
 
-  <!-- Step 3: Stop Motion Player (Clean Output) -->
+  <!-- Paso 3: Reproductor y Exportación Limpia -->
   <div class="card" id="playerCard" style="display:none;">
     <canvas id="animationCanvas"></canvas>
     
     <div class="controls">
-      <button class="btn btn-blue" id="playBtn" onclick="togglePlay()">⏸️ Pause</button>
-      <label>Speed: <span id="fpsLabel">6</span> FPS</label>
+      <button class="btn btn-blue" id="playBtn" onclick="togglePlay()">⏸️ Pausa</button>
+      <label>Velocidad: <span id="fpsLabel">6</span> FPS</label>
       <input type="range" id="fpsSlider" min="2" max="15" value="6" oninput="updateFps(this.value)">
     </div>
 
     <div style="font-size:0.85rem; color:#666; margin-top:8px; font-weight:bold;">
-      🎞️ Total Frames: <span id="totalFramesCount">0</span>
+      🎞️ Total de Cuadros: <span id="totalFramesCount">0</span>
     </div>
     <div class="frame-strip" id="frameStrip"></div>
 
     <div class="action-group">
-      <label for="appendCameraInput" class="btn btn-purple" style="font-size:1rem;">➕ Add Another Page (+Frames)</label>
-      <button class="btn btn-wa" onclick="shareVideoOrGif()">💬 Share on WhatsApp</button>
-      <div style="display:flex; justify-content:center; gap:4px;">
-        <button class="btn btn-blue" style="flex:1;" onclick="exportVideoFile()">🎥 Save Video</button>
-        <button class="btn btn-green" style="flex:1;" onclick="exportGifFile()">💾 Save GIF</button>
+      <!-- Añadir más páginas: Foto o Galería -->
+      <div style="display: flex; gap: 8px; justify-content: center;">
+        <label for="appendCameraInput" class="btn btn-purple" style="flex: 1;">📷 Otra Foto</label>
+        <label for="appendGalleryInput" class="btn btn-blue" style="flex: 1;">🖼️ Otra de Galería</label>
       </div>
-      <button class="btn btn-outline" style="border-color:#ff5722; color:#ff5722;" onclick="exportJpgZip()">🖼️ Download Frames as JPG (.zip)</button>
-      <button class="btn btn-outline btn-sm" onclick="resetAll()" style="margin-top:6px;">🗑️ Start Over</button>
+
+      <button class="btn btn-wa" onclick="shareVideoOrGif()">💬 Compartir en WhatsApp</button>
+      <div style="display:flex; justify-content:center; gap:4px;">
+        <button class="btn btn-blue" style="flex:1;" onclick="exportVideoFile()">🎥 Guardar Video</button>
+        <button class="btn btn-green" style="flex:1;" onclick="exportGifFile()">💾 Guardar GIF</button>
+      </div>
+      <button class="btn btn-outline" style="border-color:#ff5722; color:#ff5722;" onclick="exportJpgZip()">🖼️ Descargar JPGs (.zip)</button>
+      <button class="btn btn-outline btn-sm" onclick="resetAll()" style="margin-top:6px;">🗑️ Empezar de Nuevo</button>
     </div>
 
     <div id="exportStatus" style="font-size: 0.85rem; margin-top: 8px; color: #555;"></div>
@@ -339,10 +379,8 @@
     let gridCols = 2;
     let gridRows = 3;
     let aspectRatio = 1.0;
-    let currentPresetName = '2×3 (6 Frames)';
-
-    let boxWidthMm = 70;
-    let boxHeightMm = 70;
+    let currentPresetName = '2×3 (6 Cuadros)';
+    let printBorderPx = 6;
 
     let outWidth = 500;
     let outHeight = 500;
@@ -350,7 +388,6 @@
     let loadedImage = null;
     let isAppending = false;
     
-    // Array of individual 3D boxes: [{ corners: [TL, TR, BR, BL] }, ...]
     let boxes = [];
     let activeInteraction = null;
 
@@ -365,7 +402,7 @@
 
     function onOpenCvReady() {
       openCvLoaded = true;
-      console.log('OpenCV 3D Engine Ready');
+      console.log('OpenCV Listo');
     }
 
     function toggleSettings() {
@@ -381,8 +418,6 @@
         outHeight = 500;
         outWidth = Math.round(500 * aspectRatio);
       }
-      boxWidthMm = aspectRatio === 1.85 ? 80 : 70;
-      boxHeightMm = aspectRatio === 1.85 ? 43 : 70;
     }
 
     function setPreset(cols, rows, ratio, name) {
@@ -405,7 +440,7 @@
       gridCols = Math.max(1, Math.min(5, parseInt(document.getElementById('colsInput').value) || 2));
       gridRows = Math.max(1, Math.min(6, parseInt(document.getElementById('rowsInput').value) || 3));
       aspectRatio = parseFloat(document.getElementById('ratioSelect').value) || 1.0;
-      currentPresetName = `${gridCols}×${gridRows} (${gridCols * gridRows} Frames)`;
+      currentPresetName = `${gridCols}×${gridRows} (${gridCols * gridRows} Cuadros)`;
       updateDimensions();
       updateGridSummary();
       if (loadedImage) {
@@ -414,37 +449,62 @@
       }
     }
 
+    function onBorderSliderChange(val) {
+      printBorderPx = parseInt(val) || 6;
+      document.getElementById('borderWidthVal').innerText = `${printBorderPx}px`;
+    }
+
     function updateGridSummary() {
-      const ratioName = aspectRatio === 1.85 ? '1:1.85 Cinema' : (aspectRatio === 1.0 ? '1:1 Square' : `${aspectRatio}:1`);
+      const ratioName = aspectRatio === 1.85 ? '1.85:1 Cine' : (aspectRatio === 1.0 ? '1:1 Cuadrado' : `${aspectRatio}:1`);
       document.getElementById('gridSummary').innerText = `${currentPresetName} • ${ratioName}`;
     }
 
+    // --- IMPRESIÓN OPTIMIZADA: Escala exacta para evitar recortes ---
     function prepareAndPrint() {
       const container = document.getElementById('printBoxesContainer');
       container.innerHTML = '';
-      container.style.gridTemplateColumns = `repeat(${gridCols}, ${boxWidthMm}mm)`;
-      container.style.gridTemplateRows = `repeat(${gridRows}, ${boxHeightMm}mm)`;
+
+      // Área máxima imprimible segura en mm (A4 y Carta: ~170mm ancho x 230mm alto)
+      const maxPrintW = 170;
+      const maxPrintH = 225;
+      const gapMm = gridRows > 3 || gridCols > 2 ? 10 : 14;
+
+      const maxWFromCols = (maxPrintW - (gridCols - 1) * gapMm) / gridCols;
+      const maxHFromRows = (maxPrintH - (gridRows - 1) * gapMm) / gridRows;
+
+      let boxW, boxH;
+      if (aspectRatio >= 1) {
+        boxW = Math.min(maxWFromCols, maxHFromRows * aspectRatio);
+        boxH = boxW / aspectRatio;
+      } else {
+        boxH = Math.min(maxHFromRows, maxWFromCols / aspectRatio);
+        boxW = boxH * aspectRatio;
+      }
+
+      boxW = Math.floor(boxW);
+      boxH = Math.floor(boxH);
+
+      container.style.gridTemplateColumns = `repeat(${gridCols}, ${boxW}mm)`;
+      container.style.gridTemplateRows = `repeat(${gridRows}, ${boxH}mm)`;
+      container.style.gap = `${gapMm}mm`;
 
       const totalBoxes = gridCols * gridRows;
       for (let i = 1; i <= totalBoxes; i++) {
         const box = document.createElement('div');
         box.className = 'grid-box';
-        box.style.width = `${boxWidthMm}mm`;
-        box.style.height = `${boxHeightMm}mm`;
+        box.style.width = `${boxW}mm`;
+        box.style.height = `${boxH}mm`;
+        box.style.border = `${printBorderPx}px solid #000`;
         container.appendChild(box);
       }
       window.print();
     }
 
-    document.getElementById('cameraInput').addEventListener('change', function(e) {
-      isAppending = false;
-      loadImageFile(e.target.files[0]);
-    });
-
-    document.getElementById('appendCameraInput').addEventListener('change', function(e) {
-      isAppending = true;
-      loadImageFile(e.target.files[0]);
-    });
+    // Eventos para Cámara y Galería
+    document.getElementById('cameraInput').addEventListener('change', e => { isAppending = false; loadImageFile(e.target.files[0]); });
+    document.getElementById('galleryInput').addEventListener('change', e => { isAppending = false; loadImageFile(e.target.files[0]); });
+    document.getElementById('appendCameraInput').addEventListener('change', e => { isAppending = true; loadImageFile(e.target.files[0]); });
+    document.getElementById('appendGalleryInput').addEventListener('change', e => { isAppending = true; loadImageFile(e.target.files[0]); });
 
     function loadImageFile(file) {
       if (!file) return;
@@ -457,7 +517,7 @@
       reader.readAsDataURL(file);
     }
 
-    // --- INDIVIDUAL 3D PERSPECTIVE DETECTION FOR EACH SQUARE ---
+    // --- DETECCIÓN INDIVIDUAL 3D ---
     function runSmartAutoDetect() {
       const autoEnabled = document.getElementById('autoDetectToggle').checked;
       const banner = document.getElementById('snapStatusMsg');
@@ -465,7 +525,7 @@
 
       if (!autoEnabled || !openCvLoaded || !loadedImage) {
         generateDefaultGridBoxes();
-        banner.innerText = '✋ Manual mode. Drag corners or boxes to fit.';
+        banner.innerText = '✋ Modo manual activo. Arrastra los puntos.';
         banner.style.background = '#e3f2fd';
         banner.style.color = '#1565c0';
         return false;
@@ -505,10 +565,10 @@
 
         let rawBoxes = [];
         const totalArea = detW * detH;
-        const minBoxW = detW * 0.15; 
-        const minBoxH = detH * 0.10; 
-        const minArea = totalArea * 0.015;
-        const maxArea = totalArea * 0.35;
+        const minBoxW = detW * 0.12; 
+        const minBoxH = detH * 0.08; 
+        const minArea = totalArea * 0.012;
+        const maxArea = totalArea * 0.40;
 
         for (let i = 0; i < contours.size(); ++i) {
           let cnt = contours.get(i);
@@ -522,7 +582,7 @@
           if (approx.rows === 4 && cv.isContourConvex(approx)) {
             let rect = cv.boundingRect(approx);
             let asp = rect.width / rect.height;
-            if (rect.width >= minBoxW && rect.height >= minBoxH && asp >= 0.65 && asp <= 1.8) {
+            if (rect.width >= minBoxW && rect.height >= minBoxH && asp >= 0.60 && asp <= 2.2) {
               let pts = [];
               for (let j = 0; j < 4; j++) {
                 pts.push({
@@ -550,7 +610,6 @@
           approx.delete();
         }
 
-        // Deduplicate overlapping nested contours
         let deduped = [];
         rawBoxes.sort((a,b) => b.area - a.area);
         rawBoxes.forEach(b => {
@@ -576,19 +635,19 @@
           rowGroups.forEach(r => r.sort((a, b) => a.cx - b.cx));
 
           boxes = rowGroups.flat();
-          banner.innerText = `✅ Auto-detected ${boxes.length} individual 3D squares!`;
+          banner.innerText = `✅ ¡Auto-detectados ${boxes.length} cuadros en 3D!`;
           banner.style.background = '#e8f5e9';
           banner.style.color = '#2e7d32';
           return true;
         }
       } catch (err) {
-        console.warn("Detection error:", err);
+        console.warn("Error en detección:", err);
       } finally {
         src.delete(); gray.delete(); blurred.delete(); thresh.delete(); closed.delete(); contours.delete(); hierarchy.delete();
       }
 
       generateDefaultGridBoxes();
-      banner.innerText = '🎯 Drag red dots or move squares to align with the paper.';
+      banner.innerText = '🎯 Arrastra los puntos rojos para alinear los cuadros.';
       banner.style.background = '#fff3e0';
       banner.style.color = '#e65100';
       return false;
@@ -631,7 +690,7 @@
       if (!loadedImage) return;
       const w = loadedImage.width;
       const h = loadedImage.height;
-      const size = Math.min(w, h) * 0.25;
+      const size = Math.min(w, h) * 0.22;
       const cx = w / 2;
       const cy = h / 2;
       boxes.push({
@@ -646,10 +705,7 @@
     }
 
     function removeLastBox() {
-      if (boxes.length <= 1) {
-        alert("You need at least 1 square!");
-        return;
-      }
+      if (boxes.length <= 1) return;
       boxes.pop();
       drawAdjuster();
     }
@@ -670,11 +726,10 @@
 
       runSmartAutoDetect();
 
-      document.getElementById('confirmCropBtn').innerText = isAppending ? '➕ Append Page Frames' : '✨ Generate Stop Motion';
+      document.getElementById('confirmCropBtn').innerText = isAppending ? '➕ Añadir Cuadros' : '✨ Generar Stop Motion';
       drawAdjuster();
     }
 
-    // DRAW OVERLAYS ON EDITOR CANVAS
     function drawAdjuster() {
       cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
       cropCtx.drawImage(loadedImage, 0, 0);
@@ -685,7 +740,7 @@
       boxes.forEach((box, idx) => {
         const [p0, p1, p2, p3] = box.corners;
 
-        // 1. Yellow Outline
+        // 1. Contorno amarillo
         cropCtx.strokeStyle = '#ffeb3b';
         cropCtx.lineWidth = Math.max(3, cropCanvas.width * 0.004);
         cropCtx.beginPath();
@@ -696,7 +751,7 @@
         cropCtx.closePath();
         cropCtx.stroke();
 
-        // 2. Number Badge
+        // 2. Número identificador
         const cx = (p0.x + p1.x + p2.x + p3.x) / 4;
         const cy = (p0.y + p1.y + p2.y + p3.y) / 4;
 
@@ -711,7 +766,7 @@
         cropCtx.textBaseline = 'middle';
         cropCtx.fillText(String(idx + 1), cx, cy);
 
-        // 3. 4 Red Corner Dots
+        // 3. Puntos rojos
         box.corners.forEach(pt => {
           cropCtx.fillStyle = '#ff5722';
           cropCtx.beginPath();
@@ -810,12 +865,11 @@
     window.addEventListener('touchmove', onPointerMove, { passive: false });
     window.addEventListener('touchend', onPointerUp);
 
-    // --- CLEAN EXTRACTION: READS DIRECTLY FROM RAW PHOTO (NO YELLOW/RED OVERLAYS) ---
+    // --- EXTRACCIÓN LIMPIA DIRECTA DESDE LA FOTO ORIGINAL ---
     function cropAndAnimate() {
       updateDimensions();
       const newPageFrames = [];
 
-      // Create a pristine, clean canvas containing ONLY the original photo without overlays
       const cleanCanvas = document.createElement('canvas');
       cleanCanvas.width = loadedImage.width;
       cleanCanvas.height = loadedImage.height;
@@ -895,10 +949,7 @@
     }
 
     function deleteFrame(idx) {
-      if (allFrames.length <= 1) {
-        alert("You need at least 1 frame!");
-        return;
-      }
+      if (allFrames.length <= 1) return;
       allFrames.splice(idx, 1);
       refreshFrameStrip();
       if (currentFrameIdx >= allFrames.length) currentFrameIdx = 0;
@@ -910,14 +961,16 @@
       document.getElementById('playerCard').style.display = 'none';
       document.getElementById('uploadCard').style.display = 'block';
       document.getElementById('cameraInput').value = '';
+      document.getElementById('galleryInput').value = '';
       document.getElementById('appendCameraInput').value = '';
+      document.getElementById('appendGalleryInput').value = '';
       document.getElementById('exportStatus').innerHTML = '';
     }
 
     function startPlayback() {
       clearInterval(playInterval);
       isPlaying = true;
-      document.getElementById('playBtn').innerText = '⏸️ Pause';
+      document.getElementById('playBtn').innerText = '⏸️ Pausa';
       
       const animCanvas = document.getElementById('animationCanvas');
       const ctx = animCanvas.getContext('2d');
@@ -946,10 +999,10 @@
       if (isPlaying) startPlayback();
     }
 
-    // Export JPGs in ZIP (Clean drawings)
+    // Exportar JPGs en ZIP
     async function exportJpgZip() {
       const status = document.getElementById('exportStatus');
-      status.innerText = 'Packaging JPG frames into ZIP...';
+      status.innerText = 'Empaquetando JPGs...';
 
       const zip = new JSZip();
       const folder = zip.folder("stopmotion_frames");
@@ -968,12 +1021,12 @@
         try {
           await navigator.share({
             files: [zipFile],
-            title: 'Stop Motion Frames',
-            text: 'Here are my stop motion JPG frames!'
+            title: 'Cuadros Stop Motion',
+            text: 'Aquí están mis cuadros en JPG!'
           });
-          status.innerText = 'ZIP shared successfully!';
+          status.innerText = '¡ZIP compartido con éxito!';
           return;
-        } catch(err) { console.log('Share dismissed', err); }
+        } catch(err) {}
       }
 
       const url = URL.createObjectURL(zipBlob);
@@ -981,12 +1034,12 @@
       a.href = url;
       a.download = "stopmotion_frames.zip";
       a.className = "btn btn-purple";
-      a.innerText = "⬇️ Tap to Download .ZIP (JPGs)";
+      a.innerText = "⬇️ Descargar .ZIP (JPGs)";
       status.innerHTML = '';
       status.appendChild(a);
     }
 
-    // Video Recording (Clean output)
+    // Exportar Video
     async function createVideoBlob(loopCount = 3) {
       const recCanvas = document.createElement('canvas');
       recCanvas.width = outWidth;
@@ -1033,33 +1086,33 @@
 
     async function shareVideoOrGif() {
       const status = document.getElementById('exportStatus');
-      status.innerText = 'Preparing video for WhatsApp...';
+      status.innerText = 'Preparando para WhatsApp...';
 
       const vidData = await createVideoBlob(3);
       if (vidData) {
-        const file = new File([vidData.blob], `animation.${vidData.ext}`, { type: vidData.mimeType });
+        const file = new File([vidData.blob], `animacion.${vidData.ext}`, { type: vidData.mimeType });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           try {
             await navigator.share({
               files: [file],
-              title: 'My Stop Motion',
-              text: 'Check out my stop motion animation!'
+              title: 'Mi Stop Motion',
+              text: '¡Mira mi animación stop motion!'
             });
-            status.innerText = 'Shared successfully!';
+            status.innerText = '¡Compartido!';
             return;
-          } catch(err) { console.log('Share dismissed', err); }
+          } catch(err) {}
         }
       }
-      status.innerHTML = `<a href="https://api.whatsapp.com/send?text=Check%20my%20stop%20motion!" target="_blank" class="btn btn-wa">Open WhatsApp Web</a><br><small>Tip: Save the video first, then send via chat.</small>`;
+      status.innerHTML = `<a href="https://api.whatsapp.com/send?text=Mira%20mi%20stop%20motion!" target="_blank" class="btn btn-wa">Abrir WhatsApp</a>`;
     }
 
     async function exportVideoFile() {
       const status = document.getElementById('exportStatus');
-      status.innerText = 'Rendering video...';
+      status.innerText = 'Procesando video...';
       const vidData = await createVideoBlob(3);
 
       if (!vidData) {
-        status.innerText = 'Video not supported on this browser. Use Save GIF!';
+        status.innerText = 'Video no soportado. ¡Usa Guardar GIF!';
         return;
       }
 
@@ -1068,14 +1121,14 @@
       a.href = url;
       a.download = `stopmotion.${vidData.ext}`;
       a.className = 'btn btn-blue';
-      a.innerText = `⬇️ Tap to Download Video .${vidData.ext}`;
+      a.innerText = `⬇️ Descargar Video .${vidData.ext}`;
       status.innerHTML = '';
       status.appendChild(a);
     }
 
     function exportGifFile() {
       const status = document.getElementById('exportStatus');
-      status.innerText = 'Rendering GIF...';
+      status.innerText = 'Generando GIF...';
       const imagesData = allFrames.map(f => f.toDataURL('image/jpeg', 0.9));
 
       gifshot.createGIF({
@@ -1086,9 +1139,9 @@
         numWorkers: 2
       }, function(obj) {
         if (!obj.error) {
-          status.innerHTML = `<a href="${obj.image}" download="stopmotion.gif" class="btn btn-green">⬇️ Tap to Download GIF</a>`;
+          status.innerHTML = `<a href="${obj.image}" download="stopmotion.gif" class="btn btn-green">⬇️ Descargar GIF</a>`;
         } else {
-          status.innerText = 'Could not generate GIF.';
+          status.innerText = 'Error al generar GIF.';
         }
       });
     }
