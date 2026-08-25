@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Smart Stop Motion Studio</title>
+  <title>Filmstrip Stop Motion Studio</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.3.2/gifshot.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
@@ -58,37 +58,19 @@
       border-radius: 16px;
       padding: 14px;
       margin: 10px auto;
-      max-width: 500px;
+      max-width: 520px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.06);
     }
 
-    .toggle-box {
-      background: #e8f5e9;
-      border: 1px solid #c8e6c9;
-      padding: 10px 14px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      margin: 10px 0;
+    .mode-badge {
+      background: #212121;
+      color: #ffd54f;
+      display: inline-block;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
       font-weight: bold;
-      font-size: 0.95rem;
-      color: #2e7d32;
-    }
-    .toggle-box input[type="checkbox"] {
-      width: 20px;
-      height: 20px;
-      accent-color: var(--secondary);
-      cursor: pointer;
-    }
-
-    .preset-group {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 6px;
-      margin: 8px 0;
+      margin-bottom: 8px;
     }
 
     .settings-panel {
@@ -105,7 +87,7 @@
       align-items: center;
       margin: 8px 0;
     }
-    .settings-row input, .settings-row select {
+    .settings-row select {
       padding: 6px 8px;
       border-radius: 8px;
       border: 1px solid #ccc;
@@ -158,8 +140,8 @@
       flex-shrink: 0;
     }
     .frame-thumb {
-      height: 55px;
-      border-radius: 6px;
+      height: 50px;
+      border-radius: 4px;
       border: 2px solid #ddd;
       object-fit: cover;
       display: block;
@@ -197,11 +179,11 @@
       margin-top: 12px;
     }
 
-    /* --- REGLAS DE IMPRESIÓN CORREGIDAS (SIN CORTES, 1 SOLA PÁGINA) --- */
+    /* --- ESTILO EXACTO DE IMPRESIÓN DE TIRAS DE PELÍCULA 35MM (1 HOJA) --- */
     @media print {
       @page {
         size: portrait;
-        margin: 12mm;
+        margin: 8mm;
       }
       html, body {
         width: 100% !important;
@@ -209,133 +191,116 @@
         padding: 0 !important;
         background: #ffffff !important;
       }
-      /* Ocultar interfaz web */
-      body > *:not(#printableGrid) {
+      body > *:not(#printableFilmSheet) {
         display: none !important;
       }
-      /* Contenedor imprimible principal con margen superior seguro */
-      #printableGrid {
+      #printableFilmSheet {
         display: block !important;
         width: 100% !important;
         margin: 0 auto !important;
-        padding-top: 12mm !important; /* Evita que el borde superior se corte */
+        padding-top: 2mm !important;
         box-sizing: border-box !important;
-        page-break-inside: avoid !important;
-        page-break-after: avoid !important;
-        break-inside: avoid !important;
-      }
-      /* Cuadrícula CSS real para impresión */
-      .print-container {
-        display: grid !important;
-        margin: 0 auto !important;
-        justify-content: center !important;
-        box-sizing: border-box !important;
-        page-break-inside: avoid !important;
-        break-inside: avoid !important;
-      }
-      .grid-box {
-        display: block !important;
-        box-sizing: border-box !important;
-        border-radius: 4px;
-        background: #ffffff !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
       }
     }
-    #printableGrid { display: none; }
+    #printableFilmSheet { display: none; }
+
+    .film-print-title {
+      font-size: 10pt;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      text-align: left;
+      margin-bottom: 2mm;
+      color: #000;
+      padding-left: 2mm;
+    }
+    .film-columns-container {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 195mm;
+      margin: 0 auto;
+      gap: 6mm;
+    }
+    .film-column-block {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .film-col-header {
+      font-size: 13pt;
+      font-weight: 500;
+      margin-bottom: 2mm;
+      color: #000;
+    }
+    .film-strip-svg {
+      width: 100%;
+      height: auto;
+    }
   </style>
 </head>
 <body>
 
-  <h1>🎬 Smart Stop Motion Studio</h1>
-  <p>Crea animaciones cuadrando dibujos en perspectiva 3D.</p>
+  <h1>🎬 Tira de Película Stop Motion</h1>
+  <p>Imprime la hoja de 3 tiras de película, dibuja tu historia y anímala.</p>
 
-  <!-- Entradas de Cámara y Galería -->
   <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
   <input type="file" id="galleryInput" accept="image/*" style="display:none;">
   <input type="file" id="appendCameraInput" accept="image/*" capture="environment" style="display:none;">
   <input type="file" id="appendGalleryInput" accept="image/*" style="display:none;">
 
-  <!-- Paso 1: Configuración y Selección de Foto -->
+  <!-- Paso 1: Configuración e Impresión -->
   <div class="card" id="uploadCard">
-    <label class="toggle-box">
-      <input type="checkbox" id="autoDetectToggle" checked>
-      <span>✨ Auto-Detectar Cuadros en 3D</span>
-    </label>
+    <div class="mode-badge">🎞️ Modo: 3 Tiras de Película (10 Cuadros c/u)</div>
 
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-      <span style="font-weight: bold; font-size: 0.95rem;">📐 Cuadrícula: <span id="gridSummary">2×3 (6 Cuadros)</span></span>
-      <button class="btn btn-purple btn-sm" onclick="toggleSettings()">⚙️ Personalizar</button>
-    </div>
-
-    <!-- Panel de Personalización -->
-    <div class="settings-panel" id="settingsPanel" style="display:none;">
-      <div style="font-weight:bold; margin-bottom:6px;">⚡ Opciones Rápidas:</div>
-      <div class="preset-group">
-        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 3, 1.0, '6 Cuadros (2×3)')">🟨 6 Cuadros (2×3)</button>
-        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 2, 1.0, '4 Cuadros (2×2)')">🟨 4 Cuadros (2×2)</button>
-        <button class="btn btn-outline btn-sm" onclick="setPreset(3, 4, 1.85, '12 Cuadros (3×4)')">🎞️ 12 Cuadros (3×4)</button>
-        <button class="btn btn-outline btn-sm" onclick="setPreset(2, 4, 1.85, '8 Cine (2×4)')">🎞️ 8 Cine (2×4)</button>
-      </div>
-      <hr style="border:0; border-top:1px solid #ddd; margin:10px 0;">
-      
+    <div class="settings-panel">
       <div class="settings-row">
-        <label><strong>Formato:</strong></label>
-        <select id="ratioSelect" onchange="onCustomGridChange()">
-          <option value="1.0" selected>1:1 Cuadrado (Post-it)</option>
-          <option value="1.85">1.85:1 Cine Widescreen</option>
-          <option value="1.777">16:9 Video</option>
-          <option value="1.333">4:3 TV Estándar</option>
+        <label><strong>Columnas a Animar:</strong></label>
+        <select id="stripSelect" onchange="onStripSelectionChange()">
+          <option value="2" selected>Columnas 1 y 2 (20 Cuadros)</option>
+          <option value="3">Todas las 3 Columnas (30 Cuadros)</option>
+          <option value="1">Solo Columna 1 (10 Cuadros)</option>
         </select>
       </div>
-
       <div class="settings-row">
-        <label>Columnas (Horizontal):</label>
-        <input type="number" id="colsInput" min="1" max="5" value="2" onchange="onCustomGridChange()">
-      </div>
-      <div class="settings-row">
-        <label>Filas (Vertical):</label>
-        <input type="number" id="rowsInput" min="1" max="6" value="3" onchange="onCustomGridChange()">
-      </div>
-
-      <div class="settings-row">
-        <label>Grosor del Borde Impreso:</label>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <input type="range" id="borderWidthInput" min="2" max="14" value="6" oninput="onBorderSliderChange(this.value)">
-          <span id="borderWidthVal" style="font-weight:bold; width:35px;">6px</span>
-        </div>
+        <label>Formato de Cuadro:</label>
+        <select id="ratioSelect" onchange="onRatioChange()">
+          <option value="1.5" selected>1.5:1 Clásico 35mm</option>
+          <option value="1.777">16:9 Widescreen</option>
+          <option value="1.0">1:1 Cuadrado</option>
+        </select>
       </div>
     </div>
 
-    <div style="margin-top: 12px;">
-      <button class="btn btn-outline" onclick="prepareAndPrint()">🖨️ Imprimir Plantilla (1 Hoja)</button>
+    <div style="margin-top: 8px;">
+      <button class="btn btn-outline" onclick="window.print()">🖨️ Imprimir Hoja de Tiras de Película</button>
     </div>
     
     <div style="display: flex; gap: 8px; justify-content: center; margin-top: 10px;">
-      <label for="cameraInput" class="btn btn-green" style="flex: 1; padding: 12px 10px;">📷 Tomar Foto</label>
-      <label for="galleryInput" class="btn btn-blue" style="flex: 1; padding: 12px 10px;">🖼️ Galería / Fotos</label>
+      <label for="cameraInput" class="btn btn-green" style="flex: 1; padding: 12px 10px;">📷 Tomar Foto a la Hoja</label>
+      <label for="galleryInput" class="btn btn-blue" style="flex: 1; padding: 12px 10px;">🖼️ Subir Escaneo / Foto</label>
     </div>
   </div>
 
-  <!-- Paso 2: Editor de Cuadros en 3D -->
+  <!-- Paso 2: Editor y Ajuste de Tiras -->
   <div class="card" id="adjustCard" style="display:none;">
-    <div class="status-banner" id="snapStatusMsg" style="background:#e8f5e9; color:#2e7d32;">✨ Cuadros detectados en 3D.</div>
+    <div class="status-banner" id="snapStatusMsg" style="background:#e8f5e9; color:#2e7d32;">✨ Tiras de película detectadas.</div>
     
     <div class="adjust-toolbar">
-      <button class="btn btn-purple btn-sm" onclick="triggerAutoDetect()">⚡ Re-Detectar</button>
-      <button class="btn btn-outline btn-sm" onclick="addNewBox()">➕ Añadir Cuadro</button>
-      <button class="btn btn-outline btn-sm" onclick="removeLastBox()">➖ Quitar</button>
+      <button class="btn btn-purple btn-sm" onclick="runFilmAutoDetect()">⚡ Re-Detectar</button>
+      <button class="btn btn-outline btn-sm" onclick="resetDefaultStrips()">🔄 Reajustar Tiras</button>
     </div>
 
     <canvas id="cropCanvas"></canvas>
 
     <div style="font-size: 0.8rem; color: #666; margin-top: 6px;">
-      💡 <em>Arrastra los puntos rojos para ajustar esquinas, o el centro para mover el cuadro.</em>
+      💡 <em>Arrastra los puntos rojos para alinear cada tira de película con tu foto.</em>
     </div>
 
     <div style="margin-top: 10px;">
-      <button class="btn btn-blue" id="confirmCropBtn" onclick="cropAndAnimate()">✨ Generar Stop Motion</button>
-      <button class="btn btn-outline" onclick="cancelAdjust()">🔄 Elegir Otra</button>
+      <button class="btn btn-blue" id="confirmCropBtn" onclick="cropAndAnimateFilm()">✨ Generar Stop Motion</button>
+      <button class="btn btn-outline" onclick="cancelAdjust()">🔄 Cancelar</button>
     </div>
   </div>
 
@@ -345,58 +310,79 @@
     
     <div class="controls">
       <button class="btn btn-blue" id="playBtn" onclick="togglePlay()">⏸️ Pausa</button>
-      <label>Velocidad: <span id="fpsLabel">6</span> FPS</label>
-      <input type="range" id="fpsSlider" min="2" max="15" value="6" oninput="updateFps(this.value)">
+      <label>Velocidad: <span id="fpsLabel">8</span> FPS</label>
+      <input type="range" id="fpsSlider" min="2" max="24" value="8" oninput="updateFps(this.value)">
     </div>
 
     <div style="font-size:0.85rem; color:#666; margin-top:8px; font-weight:bold;">
-      🎞️ Total de Cuadros: <span id="totalFramesCount">0</span>
+      🎞️ Total de Cuadros en Película: <span id="totalFramesCount">0</span>
     </div>
     <div class="frame-strip" id="frameStrip"></div>
 
     <div class="action-group">
       <div style="display: flex; gap: 8px; justify-content: center;">
-        <label for="appendCameraInput" class="btn btn-purple" style="flex: 1;">📷 Otra Foto</label>
-        <label for="appendGalleryInput" class="btn btn-blue" style="flex: 1;">🖼️ Otra de Galería</label>
+        <label for="appendCameraInput" class="btn btn-purple" style="flex: 1;">📷 Añadir Otra Hoja</label>
+        <label for="appendGalleryInput" class="btn btn-blue" style="flex: 1;">🖼️ Añadir de Galería</label>
       </div>
 
       <button class="btn btn-wa" onclick="shareVideoOrGif()">💬 Compartir en WhatsApp</button>
       <div style="display:flex; justify-content:center; gap:4px;">
-        <button class="btn btn-blue" style="flex:1;" onclick="exportVideoFile()">🎥 Guardar Video</button>
+        <button class="btn btn-blue" style="flex:1;" onclick="exportVideoFile()">🎥 Guardar Video MP4</button>
         <button class="btn btn-green" style="flex:1;" onclick="exportGifFile()">💾 Guardar GIF</button>
       </div>
-      <button class="btn btn-outline" style="border-color:#ff5722; color:#ff5722;" onclick="exportJpgZip()">🖼️ Descargar JPGs (.zip)</button>
-      <button class="btn btn-outline btn-sm" onclick="resetAll()" style="margin-top:6px;">🗑️ Empezar de Nuevo</button>
+      <button class="btn btn-outline" style="border-color:#ff5722; color:#ff5722;" onclick="exportJpgZip()">🖼️ Descargar Todos los JPGs (.zip)</button>
+      <button class="btn btn-outline btn-sm" onclick="resetAll()" style="margin-top:6px;">🗑️ Empezar Nueva Película</button>
     </div>
 
     <div id="exportStatus" style="font-size: 0.85rem; margin-top: 8px; color: #555;"></div>
   </div>
 
-  <div id="printableGrid">
-    <div class="print-container" id="printBoxesContainer"></div>
+  <!-- --- HOJA IMPRIMIBLE VECTORIAL IDÉNTICA A LA IMAGEN --- -->
+  <div id="printableFilmSheet">
+    <div class="film-print-title">Utiliza las 2 primeras columnas para compartir un sueño o emoción:</div>
+    <div class="film-columns-container">
+      
+      <!-- Columna 1 -->
+      <div class="film-column-block">
+        <div class="film-col-header">1</div>
+        <div id="svgStrip1Container"></div>
+      </div>
+
+      <!-- Columna 2 -->
+      <div class="film-column-block">
+        <div class="film-col-header">2</div>
+        <div id="svgStrip2Container"></div>
+      </div>
+
+      <!-- Columna 3 -->
+      <div class="film-column-block">
+        <div class="film-col-header">?</div>
+        <div id="svgStrip3Container"></div>
+      </div>
+
+    </div>
   </div>
 
   <script>
     let openCvLoaded = false;
-    let gridCols = 2;
-    let gridRows = 3;
-    let aspectRatio = 1.0;
-    let currentPresetName = '2×3 (6 Cuadros)';
-    let printBorderPx = 6;
+    let selectedStripsCount = 2; // Default 2 columns (20 frames)
+    let framesPerStrip = 10;
+    let aspectRatio = 1.5; // 1.5:1 35mm frame ratio
 
-    let outWidth = 500;
-    let outHeight = 500;
+    let outWidth = 540;
+    let outHeight = 360;
 
     let loadedImage = null;
     let isAppending = false;
     
-    let boxes = [];
-    let activeInteraction = null;
+    // 3 Strips, each has 4 corners: [TL, TR, BR, BL]
+    let strips = [];
+    let activeHandle = null;
 
     let allFrames = [];
     let currentFrameIdx = 0;
     let isPlaying = false;
-    let fps = 6;
+    let fps = 8;
     let playInterval = null;
 
     const cropCanvas = document.getElementById('cropCanvas');
@@ -404,103 +390,65 @@
 
     function onOpenCvReady() {
       openCvLoaded = true;
-      console.log('OpenCV Listo');
+      console.log('OpenCV Film Engine Ready');
     }
 
-    function toggleSettings() {
-      const panel = document.getElementById('settingsPanel');
-      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    function onStripSelectionChange() {
+      selectedStripsCount = parseInt(document.getElementById('stripSelect').value) || 2;
+      if (loadedImage) drawAdjuster();
     }
 
-    function updateDimensions() {
-      if (aspectRatio >= 1) {
-        outWidth = 500;
-        outHeight = Math.round(500 / aspectRatio);
-      } else {
-        outHeight = 500;
-        outWidth = Math.round(500 * aspectRatio);
-      }
+    function onRatioChange() {
+      aspectRatio = parseFloat(document.getElementById('ratioSelect').value) || 1.5;
+      outWidth = 540;
+      outHeight = Math.round(540 / aspectRatio);
     }
 
-    function setPreset(cols, rows, ratio, name) {
-      gridCols = cols;
-      gridRows = rows;
-      aspectRatio = ratio;
-      currentPresetName = name;
-      document.getElementById('colsInput').value = cols;
-      document.getElementById('rowsInput').value = rows;
-      document.getElementById('ratioSelect').value = String(ratio);
-      updateDimensions();
-      updateGridSummary();
-      if (loadedImage) {
-        runSmartAutoDetect();
-        drawAdjuster();
-      }
-    }
+    // --- GENERADOR VECTORIAL SVG DE LAS TIRAS DE PELÍCULA (IMPRESIÓN NÍTIDA) ---
+    function renderPrintableSVGs() {
+      const stripWidth = 180;
+      const stripHeight = 860;
+      const frameW = 126;
+      const frameH = 74;
+      const frameX = 27;
+      const frameGap = 10;
+      const startY = 12;
 
-    function onCustomGridChange() {
-      gridCols = Math.max(1, Math.min(5, parseInt(document.getElementById('colsInput').value) || 2));
-      gridRows = Math.max(1, Math.min(6, parseInt(document.getElementById('rowsInput').value) || 3));
-      aspectRatio = parseFloat(document.getElementById('ratioSelect').value) || 1.0;
-      currentPresetName = `${gridCols}×${gridRows} (${gridCols * gridRows} Cuadros)`;
-      updateDimensions();
-      updateGridSummary();
-      if (loadedImage) {
-        runSmartAutoDetect();
-        drawAdjuster();
-      }
-    }
-
-    function onBorderSliderChange(val) {
-      printBorderPx = parseInt(val) || 6;
-      document.getElementById('borderWidthVal').innerText = `${printBorderPx}px`;
-    }
-
-    function updateGridSummary() {
-      const ratioName = aspectRatio === 1.85 ? '1.85:1 Cine' : (aspectRatio === 1.0 ? '1:1 Cuadrado' : `${aspectRatio}:1`);
-      document.getElementById('gridSummary').innerText = `${currentPresetName} • ${ratioName}`;
-    }
-
-    // --- CÁLCULO SEGURO Y CENTRADO PARA 1 HOJA ---
-    function prepareAndPrint() {
-      const container = document.getElementById('printBoxesContainer');
-      container.innerHTML = '';
-
-      // Área segura para Carta y A4 (Ancho máx: 160mm, Alto máx: 200mm)
-      const maxPrintW = 160;
-      const maxPrintH = 200;
-      const gapMm = gridRows >= 4 || gridCols >= 3 ? 8 : 12;
-
-      const maxWFromCols = (maxPrintW - (gridCols - 1) * gapMm) / gridCols;
-      const maxHFromRows = (maxPrintH - (gridRows - 1) * gapMm) / gridRows;
-
-      let boxW, boxH;
-      if (aspectRatio >= 1) {
-        boxW = Math.min(maxWFromCols, maxHFromRows * aspectRatio);
-        boxH = boxW / aspectRatio;
-      } else {
-        boxH = Math.min(maxHFromRows, maxWFromCols / aspectRatio);
-        boxW = boxH * aspectRatio;
+      let framesSVG = '';
+      for (let i = 0; i < 10; i++) {
+        const y = startY + i * (frameH + frameGap);
+        framesSVG += `<rect x="${frameX}" y="${y}" width="${frameW}" height="${frameH}" fill="#ffffff" stroke="#000000" stroke-width="7" />`;
       }
 
-      boxW = Math.floor(boxW);
-      boxH = Math.floor(boxH);
-
-      container.style.gridTemplateColumns = `repeat(${gridCols}, ${boxW}mm)`;
-      container.style.gridTemplateRows = `repeat(${gridRows}, ${boxH}mm)`;
-      container.style.gap = `${gapMm}mm`;
-
-      const totalBoxes = gridCols * gridRows;
-      for (let i = 1; i <= totalBoxes; i++) {
-        const box = document.createElement('div');
-        box.className = 'grid-box';
-        box.style.width = `${boxW}mm`;
-        box.style.height = `${boxH}mm`;
-        box.style.border = `${printBorderPx}px solid #000`;
-        container.appendChild(box);
+      // Perforaciones cuadradas laterales
+      let sprocketsSVG = '';
+      const numSprockets = 44;
+      const sprocSize = 10;
+      const sprocStep = stripHeight / numSprockets;
+      for (let i = 0; i < numSprockets; i++) {
+        const y = 8 + i * sprocStep;
+        // Izquierda
+        sprocketsSVG += `<rect x="7" y="${y}" width="${sprocSize}" height="${sprocSize}" fill="#ffffff" rx="1" />`;
+        // Derecha
+        sprocketsSVG += `<rect x="${stripWidth - 17}" y="${y}" width="${sprocSize}" height="${sprocSize}" fill="#ffffff" rx="1" />`;
       }
-      window.print();
+
+      const fullSVG = `
+        <svg viewBox="0 0 ${stripWidth} ${stripHeight}" class="film-strip-svg" xmlns="http://www.w3.org/2000/svg">
+          <!-- Fondo negro de la tira -->
+          <rect x="0" y="0" width="${stripWidth}" height="${stripHeight}" fill="#000000" />
+          <!-- Perforaciones -->
+          ${sprocketsSVG}
+          <!-- 10 Cuadros de dibujo -->
+          ${framesSVG}
+        </svg>
+      `;
+
+      document.getElementById('svgStrip1Container').innerHTML = fullSVG;
+      document.getElementById('svgStrip2Container').innerHTML = fullSVG;
+      document.getElementById('svgStrip3Container').innerHTML = fullSVG;
     }
+    renderPrintableSVGs();
 
     // Eventos Cámara y Galería
     document.getElementById('cameraInput').addEventListener('change', e => { isAppending = false; loadImageFile(e.target.files[0]); });
@@ -519,18 +467,43 @@
       reader.readAsDataURL(file);
     }
 
-    // --- DETECCIÓN INDIVIDUAL 3D ---
-    function runSmartAutoDetect() {
-      const autoEnabled = document.getElementById('autoDetectToggle').checked;
-      const banner = document.getElementById('snapStatusMsg');
-      boxes = [];
+    // Generar las 3 Tiras de Película por defecto
+    function resetDefaultStrips() {
+      if (!loadedImage) return;
+      const w = loadedImage.width;
+      const h = loadedImage.height;
+      
+      const marginX = w * 0.06;
+      const marginY = h * 0.08;
+      const totalW = w - 2 * marginX;
+      const totalH = h - 2 * marginY;
+      
+      const stripW = totalW * 0.28;
+      const gapX = (totalW - 3 * stripW) / 2;
 
-      if (!autoEnabled || !openCvLoaded || !loadedImage) {
-        generateDefaultGridBoxes();
-        banner.innerText = '✋ Modo manual activo. Arrastra los puntos.';
-        banner.style.background = '#e3f2fd';
-        banner.style.color = '#1565c0';
-        return false;
+      strips = [];
+      for (let s = 0; s < 3; s++) {
+        const x0 = marginX + s * (stripW + gapX);
+        const y0 = marginY;
+        strips.push({
+          corners: [
+            { x: x0, y: y0 },
+            { x: x0 + stripW, y: y0 },
+            { x: x0 + stripW, y: y0 + totalH },
+            { x: x0, y: y0 + totalH }
+          ]
+        });
+      }
+    }
+
+    // --- DETECCIÓN INTELIGENTE DE LAS 3 TIRAS DE PELÍCULA ---
+    function runFilmAutoDetect() {
+      const banner = document.getElementById('snapStatusMsg');
+      resetDefaultStrips();
+
+      if (!openCvLoaded || !loadedImage) {
+        banner.innerText = '🎯 Ajusta los puntos rojos a cada tira de película.';
+        return;
       }
 
       const maxDim = 900;
@@ -559,162 +532,70 @@
         cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
         cv.adaptiveThreshold(blurred, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 41, 5);
 
-        let kernel = cv.Mat.ones(3, 3, cv.CV_8U);
+        let kernel = cv.Mat.ones(5, 5, cv.CV_8U);
         cv.morphologyEx(thresh, closed, cv.MORPH_CLOSE, kernel);
         kernel.delete();
 
-        cv.findContours(closed, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);
+        cv.findContours(closed, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
-        let rawBoxes = [];
+        let detectedStrips = [];
         const totalArea = detW * detH;
-        const minBoxW = detW * 0.12; 
-        const minBoxH = detH * 0.08; 
-        const minArea = totalArea * 0.012;
-        const maxArea = totalArea * 0.40;
 
         for (let i = 0; i < contours.size(); ++i) {
           let cnt = contours.get(i);
           let area = cv.contourArea(cnt);
-          if (area < minArea || area > maxArea) continue;
+          // Las tiras de película completas son altas y tienen área grande (> 8% de la página)
+          if (area < totalArea * 0.06 || area > totalArea * 0.60) continue;
 
-          let peri = cv.arcLength(cnt, true);
-          let approx = new cv.Mat();
-          cv.approxPolyDP(cnt, approx, 0.035 * peri, true);
+          let rect = cv.boundingRect(cnt);
+          let asp = rect.height / rect.width;
+          // Tira vertical muy alta (relación alto/ancho > 2.5)
+          if (asp >= 2.2 && rect.height > detH * 0.5) {
+            let approx = new cv.Mat();
+            cv.approxPolyDP(cnt, approx, 0.03 * cv.arcLength(cnt, true), true);
 
-          if (approx.rows === 4 && cv.isContourConvex(approx)) {
-            let rect = cv.boundingRect(approx);
-            let asp = rect.width / rect.height;
-            if (rect.width >= minBoxW && rect.height >= minBoxH && asp >= 0.60 && asp <= 2.2) {
-              let pts = [];
-              for (let j = 0; j < 4; j++) {
-                pts.push({
-                  x: approx.data32S[j * 2] / scale,
-                  y: approx.data32S[j * 2 + 1] / scale
-                });
-              }
+            let pts = [];
+            for (let j = 0; j < approx.rows; j++) {
+              pts.push({
+                x: approx.data32S[j * 2] / scale,
+                y: approx.data32S[j * 2 + 1] / scale
+              });
+            }
 
+            if (pts.length >= 4) {
               let tl = pts.reduce((min, p) => (p.x + p.y < min.x + min.y ? p : min), pts[0]);
               let br = pts.reduce((max, p) => (p.x + p.y > max.x + max.y ? p : max), pts[0]);
               let tr = pts.reduce((max, p) => (p.x - p.y > max.x - max.y ? p : max), pts[0]);
               let bl = pts.reduce((min, p) => (p.x - p.y < min.x - min.y ? p : min), pts[0]);
 
-              const cx = (tl.x + tr.x + br.x + bl.x) / 4;
-              const cy = (tl.y + tr.y + br.y + bl.y) / 4;
-              const w = Math.hypot(tr.x - tl.x, tr.y - tl.y);
-              const h = Math.hypot(bl.x - tl.x, bl.y - tl.y);
-
-              rawBoxes.push({
+              detectedStrips.push({
                 corners: [tl, tr, br, bl],
-                cx, cy, w, h, area
+                cx: (tl.x + tr.x + br.x + bl.x) / 4
               });
             }
+            approx.delete();
           }
-          approx.delete();
         }
 
-        let deduped = [];
-        rawBoxes.sort((a,b) => b.area - a.area);
-        rawBoxes.forEach(b => {
-          let exists = deduped.some(d => Math.hypot(d.cx - b.cx, d.cy - b.cy) < (b.w * 0.35));
-          if (!exists) deduped.push(b);
-        });
-
-        if (deduped.length >= 2) {
-          deduped.sort((a, b) => a.cy - b.cy);
-          let avgH = deduped.reduce((sum, b) => sum + b.h, 0) / deduped.length;
-
-          let rowGroups = [];
-          let currentRow = [deduped[0]];
-          for (let i = 1; i < deduped.length; i++) {
-            if (Math.abs(deduped[i].cy - currentRow[0].cy) < (avgH * 0.5)) {
-              currentRow.push(deduped[i]);
-            } else {
-              rowGroups.push(currentRow);
-              currentRow = [deduped[i]];
-            }
+        if (detectedStrips.length >= 2) {
+          detectedStrips.sort((a, b) => a.cx - b.cx);
+          // Si detectó las 3 tiras
+          if (detectedStrips.length >= 3) {
+            strips = detectedStrips.slice(0, 3);
+          } else {
+            // Si detectó 2, asignar a las 2 primeras
+            strips[0] = detectedStrips[0];
+            strips[1] = detectedStrips[1];
           }
-          rowGroups.push(currentRow);
-          rowGroups.forEach(r => r.sort((a, b) => a.cx - b.cx));
-
-          boxes = rowGroups.flat();
-          banner.innerText = `✅ ¡Auto-detectados ${boxes.length} cuadros en 3D!`;
+          banner.innerText = `✅ ¡Tiras de película detectadas en 3D!`;
           banner.style.background = '#e8f5e9';
           banner.style.color = '#2e7d32';
-          return true;
         }
       } catch (err) {
-        console.warn("Error en detección:", err);
+        console.warn("Detección de tiras:", err);
       } finally {
         src.delete(); gray.delete(); blurred.delete(); thresh.delete(); closed.delete(); contours.delete(); hierarchy.delete();
       }
-
-      generateDefaultGridBoxes();
-      banner.innerText = '🎯 Arrastra los puntos rojos para alinear los cuadros.';
-      banner.style.background = '#fff3e0';
-      banner.style.color = '#e65100';
-      return false;
-    }
-
-    function generateDefaultGridBoxes() {
-      boxes = [];
-      if (!loadedImage) return;
-      const w = loadedImage.width;
-      const h = loadedImage.height;
-
-      const marginX = w * 0.12;
-      const marginY = h * 0.08;
-      const gridW = w - 2 * marginX;
-      const gridH = h - 2 * marginY;
-
-      const gapX = gridCols > 1 ? (gridW * 0.12) / (gridCols - 1) : 0;
-      const gapY = gridRows > 1 ? (gridH * 0.12) / (gridRows - 1) : 0;
-
-      const cellW = (gridW - (gridCols - 1) * gapX) / gridCols;
-      const cellH = (gridH - (gridRows - 1) * gapY) / gridRows;
-
-      for (let r = 0; r < gridRows; r++) {
-        for (let c = 0; c < gridCols; c++) {
-          const x0 = marginX + c * (cellW + gapX);
-          const y0 = marginY + r * (cellH + gapY);
-          boxes.push({
-            corners: [
-              { x: x0, y: y0 },
-              { x: x0 + cellW, y: y0 },
-              { x: x0 + cellW, y: y0 + cellH },
-              { x: x0, y: y0 + cellH }
-            ]
-          });
-        }
-      }
-    }
-
-    function addNewBox() {
-      if (!loadedImage) return;
-      const w = loadedImage.width;
-      const h = loadedImage.height;
-      const size = Math.min(w, h) * 0.22;
-      const cx = w / 2;
-      const cy = h / 2;
-      boxes.push({
-        corners: [
-          { x: cx - size/2, y: cy - size/2 },
-          { x: cx + size/2, y: cy - size/2 },
-          { x: cx + size/2, y: cy + size/2 },
-          { x: cx - size/2, y: cy + size/2 }
-        ]
-      });
-      drawAdjuster();
-    }
-
-    function removeLastBox() {
-      if (boxes.length <= 1) return;
-      boxes.pop();
-      drawAdjuster();
-    }
-
-    function triggerAutoDetect() {
-      runSmartAutoDetect();
-      drawAdjuster();
     }
 
     function setupAdjuster() {
@@ -726,24 +607,35 @@
       cropCanvas.width = loadedImage.width;
       cropCanvas.height = loadedImage.height;
 
-      runSmartAutoDetect();
+      runFilmAutoDetect();
 
-      document.getElementById('confirmCropBtn').innerText = isAppending ? '➕ Añadir Cuadros' : '✨ Generar Stop Motion';
+      document.getElementById('confirmCropBtn').innerText = isAppending ? '➕ Añadir Tiras a Película' : '✨ Generar Stop Motion';
       drawAdjuster();
     }
 
+    // Interpolación en perspectiva de 1 Tira
+    function interpStrip(stripIdx, u, v) {
+      const [tl, tr, br, bl] = strips[stripIdx].corners;
+      return {
+        x: (1 - u) * (1 - v) * tl.x + u * (1 - v) * tr.x + u * v * br.x + (1 - u) * v * bl.x,
+        y: (1 - u) * (1 - v) * tl.y + u * (1 - v) * tr.y + u * v * br.y + (1 - u) * v * bl.y
+      };
+    }
+
+    // Dibujar las 3 Tiras con sus 10 Cuadros de Película
     function drawAdjuster() {
       cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
       cropCtx.drawImage(loadedImage, 0, 0);
 
       const redRadius = Math.max(16, cropCanvas.width * 0.024);
-      const fontScale = Math.max(18, cropCanvas.width * 0.028);
+      const fontScale = Math.max(16, cropCanvas.width * 0.024);
 
-      boxes.forEach((box, idx) => {
-        const [p0, p1, p2, p3] = box.corners;
+      for (let s = 0; s < 3; s++) {
+        const isIncluded = s < selectedStripsCount;
+        const [p0, p1, p2, p3] = strips[s].corners;
 
-        // Contorno amarillo
-        cropCtx.strokeStyle = '#ffeb3b';
+        // 1. Contorno de la Tira
+        cropCtx.strokeStyle = isIncluded ? 'rgba(33, 150, 243, 0.85)' : 'rgba(150, 150, 150, 0.4)';
         cropCtx.lineWidth = Math.max(3, cropCanvas.width * 0.004);
         cropCtx.beginPath();
         cropCtx.moveTo(p0.x, p0.y);
@@ -753,24 +645,52 @@
         cropCtx.closePath();
         cropCtx.stroke();
 
-        // Número identificador
-        const cx = (p0.x + p1.x + p2.x + p3.x) / 4;
-        const cy = (p0.y + p1.y + p2.y + p3.y) / 4;
+        // 2. Dibujar los 10 Cuadros de Película dentro de la tira
+        // Margen horizontal interior para no agarrar las perforaciones: u de 0.15 a 0.85
+        const u0 = 0.15;
+        const u1 = 0.85;
 
-        cropCtx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-        cropCtx.beginPath();
-        cropCtx.arc(cx, cy, fontScale * 0.85, 0, Math.PI * 2);
-        cropCtx.fill();
+        for (let r = 0; r < 10; r++) {
+          const v0 = (r * 0.10) + 0.012;
+          const v1 = ((r + 1) * 0.10) - 0.012;
 
-        cropCtx.fillStyle = '#ffffff';
-        cropCtx.font = `bold ${fontScale}px sans-serif`;
-        cropCtx.textAlign = 'center';
-        cropCtx.textBaseline = 'middle';
-        cropCtx.fillText(String(idx + 1), cx, cy);
+          const f0 = interpStrip(s, u0, v0);
+          const f1 = interpStrip(s, u1, v0);
+          const f2 = interpStrip(s, u1, v1);
+          const f3 = interpStrip(s, u0, v1);
 
-        // Puntos rojos
-        box.corners.forEach(pt => {
-          cropCtx.fillStyle = '#ff5722';
+          cropCtx.strokeStyle = isIncluded ? '#ffeb3b' : 'rgba(255, 235, 59, 0.3)';
+          cropCtx.lineWidth = Math.max(2.5, cropCanvas.width * 0.0035);
+          cropCtx.beginPath();
+          cropCtx.moveTo(f0.x, f0.y);
+          cropCtx.lineTo(f1.x, f1.y);
+          cropCtx.lineTo(f2.x, f2.y);
+          cropCtx.lineTo(f3.x, f3.y);
+          cropCtx.closePath();
+          cropCtx.stroke();
+
+          // Número de Cuadro
+          if (isIncluded) {
+            const frameNum = s * 10 + r + 1;
+            const cx = (f0.x + f1.x + f2.x + f3.x) / 4;
+            const cy = (f0.y + f1.y + f2.y + f3.y) / 4;
+
+            cropCtx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            cropCtx.beginPath();
+            cropCtx.arc(cx, cy, fontScale * 0.75, 0, Math.PI * 2);
+            cropCtx.fill();
+
+            cropCtx.fillStyle = '#ffffff';
+            cropCtx.font = `bold ${fontScale * 0.9}px sans-serif`;
+            cropCtx.textAlign = 'center';
+            cropCtx.textBaseline = 'middle';
+            cropCtx.fillText(String(frameNum), cx, cy);
+          }
+        }
+
+        // 3. Puntos de Esquina de la Tira
+        strips[s].corners.forEach(pt => {
+          cropCtx.fillStyle = isIncluded ? '#ff5722' : '#888888';
           cropCtx.beginPath();
           cropCtx.arc(pt.x, pt.y, redRadius, 0, Math.PI * 2);
           cropCtx.fill();
@@ -778,21 +698,10 @@
           cropCtx.lineWidth = 2.5;
           cropCtx.stroke();
         });
-      });
-    }
-
-    function isPointInsideQuad(pt, quad) {
-      let inside = false;
-      for (let i = 0, j = 3; i < 4; j = i++) {
-        const xi = quad[i].x, yi = quad[i].y;
-        const xj = quad[j].x, yj = quad[j].y;
-        const intersect = ((yi > pt.y) !== (yj > pt.y)) &&
-            (pt.x < (xj - xi) * (pt.y - yi) / (yj - yi) + xi);
-        if (intersect) inside = !inside;
       }
-      return inside;
     }
 
+    // Touch & Drag Handling para las 3 Tiras
     function getCanvasCoords(e) {
       const rect = cropCanvas.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -806,59 +715,35 @@
     function onPointerDown(e) {
       const pos = getCanvasCoords(e);
       const touchDist = Math.max(35, cropCanvas.width * 0.06);
-      activeInteraction = null;
+      activeHandle = null;
 
-      for (let b = 0; b < boxes.length; b++) {
+      for (let s = 0; s < 3; s++) {
         for (let c = 0; c < 4; c++) {
-          if (Math.hypot(boxes[b].corners[c].x - pos.x, boxes[b].corners[c].y - pos.y) < touchDist) {
-            activeInteraction = { type: 'corner', boxIdx: b, cornerIdx: c };
+          if (Math.hypot(strips[s].corners[c].x - pos.x, strips[s].corners[c].y - pos.y) < touchDist) {
+            activeHandle = { stripIdx: s, cornerIdx: c };
             e.preventDefault();
             return;
           }
         }
       }
-
-      for (let b = 0; b < boxes.length; b++) {
-        if (isPointInsideQuad(pos, boxes[b].corners)) {
-          activeInteraction = {
-            type: 'move_box',
-            boxIdx: b,
-            startPos: pos,
-            origCorners: boxes[b].corners.map(pt => ({ ...pt }))
-          };
-          e.preventDefault();
-          return;
-        }
-      }
     }
 
     function onPointerMove(e) {
-      if (!activeInteraction) return;
+      if (!activeHandle) return;
       e.preventDefault();
       const pos = getCanvasCoords(e);
-      const bIdx = activeInteraction.boxIdx;
+      const s = activeHandle.stripIdx;
+      const c = activeHandle.cornerIdx;
 
-      if (activeInteraction.type === 'corner') {
-        const cIdx = activeInteraction.cornerIdx;
-        boxes[bIdx].corners[cIdx] = {
-          x: Math.max(0, Math.min(cropCanvas.width, pos.x)),
-          y: Math.max(0, Math.min(cropCanvas.height, pos.y))
-        };
-      } else if (activeInteraction.type === 'move_box') {
-        const dx = pos.x - activeInteraction.startPos.x;
-        const dy = pos.y - activeInteraction.startPos.y;
-        for (let i = 0; i < 4; i++) {
-          boxes[bIdx].corners[i] = {
-            x: Math.max(0, Math.min(cropCanvas.width, activeInteraction.origCorners[i].x + dx)),
-            y: Math.max(0, Math.min(cropCanvas.height, activeInteraction.origCorners[i].y + dy))
-          };
-        }
-      }
+      strips[s].corners[c] = {
+        x: Math.max(0, Math.min(cropCanvas.width, pos.x)),
+        y: Math.max(0, Math.min(cropCanvas.height, pos.y))
+      };
 
       drawAdjuster();
     }
 
-    function onPointerUp() { activeInteraction = null; }
+    function onPointerUp() { activeHandle = null; }
 
     cropCanvas.addEventListener('mousedown', onPointerDown);
     window.addEventListener('mousemove', onPointerMove);
@@ -867,9 +752,8 @@
     window.addEventListener('touchmove', onPointerMove, { passive: false });
     window.addEventListener('touchend', onPointerUp);
 
-    // --- EXTRACCIÓN LIMPIA ---
-    function cropAndAnimate() {
-      updateDimensions();
+    // --- EXTRACCIÓN LIMPIA Y SECUENCIAL DE LA PELÍCULA (20 O 30 CUADROS) ---
+    function cropAndAnimateFilm() {
       const newPageFrames = [];
 
       const cleanCanvas = document.createElement('canvas');
@@ -880,24 +764,36 @@
 
       const srcMat = cv.imread(cleanCanvas);
 
-      boxes.forEach(box => {
-        const [p0, p1, p2, p3] = box.corners;
+      const u0 = 0.15;
+      const u1 = 0.85;
 
-        let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [p0.x, p0.y, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y]);
-        let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, outWidth, 0, outWidth, outHeight, 0, outHeight]);
+      // Recorrer las tiras seleccionadas (1, 2 o 3)
+      for (let s = 0; s < selectedStripsCount; s++) {
+        for (let r = 0; r < 10; r++) {
+          const v0 = (r * 0.10) + 0.012;
+          const v1 = ((r + 1) * 0.10) - 0.012;
 
-        let M = cv.getPerspectiveTransform(srcTri, dstTri);
-        let dst = new cv.Mat();
-        cv.warpPerspective(srcMat, dst, M, new cv.Size(outWidth, outHeight), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+          const f0 = interpStrip(s, u0, v0);
+          const f1 = interpStrip(s, u1, v0);
+          const f2 = interpStrip(s, u1, v1);
+          const f3 = interpStrip(s, u0, v1);
 
-        let fCanvas = document.createElement('canvas');
-        fCanvas.width = outWidth;
-        fCanvas.height = outHeight;
-        cv.imshow(fCanvas, dst);
-        newPageFrames.push(fCanvas);
+          let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [f0.x, f0.y, f1.x, f1.y, f2.x, f2.y, f3.x, f3.y]);
+          let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, outWidth, 0, outWidth, outHeight, 0, outHeight]);
 
-        srcTri.delete(); dstTri.delete(); M.delete(); dst.delete();
-      });
+          let M = cv.getPerspectiveTransform(srcTri, dstTri);
+          let dst = new cv.Mat();
+          cv.warpPerspective(srcMat, dst, M, new cv.Size(outWidth, outHeight), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+
+          let fCanvas = document.createElement('canvas');
+          fCanvas.width = outWidth;
+          fCanvas.height = outHeight;
+          cv.imshow(fCanvas, dst);
+          newPageFrames.push(fCanvas);
+
+          srcTri.delete(); dstTri.delete(); M.delete(); dst.delete();
+        }
+      }
       srcMat.delete();
 
       if (isAppending) {
@@ -1004,27 +900,27 @@
     // Exportar JPGs en ZIP
     async function exportJpgZip() {
       const status = document.getElementById('exportStatus');
-      status.innerText = 'Empaquetando JPGs...';
+      status.innerText = 'Empaquetando JPGs de la película...';
 
       const zip = new JSZip();
-      const folder = zip.folder("stopmotion_frames");
+      const folder = zip.folder("pelicula_stopmotion");
 
       allFrames.forEach((canvas, idx) => {
         const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
         const base64Data = dataUrl.replace(/^data:image\/jpeg;base64,/, "");
         const num = String(idx + 1).padStart(2, '0');
-        folder.file(`frame_${num}.jpg`, base64Data, {base64: true});
+        folder.file(`cuadro_${num}.jpg`, base64Data, {base64: true});
       });
 
       const zipBlob = await zip.generateAsync({type: "blob"});
-      const zipFile = new File([zipBlob], "stopmotion_frames.zip", { type: "application/zip" });
+      const zipFile = new File([zipBlob], "pelicula_stopmotion.zip", { type: "application/zip" });
 
       if (navigator.canShare && navigator.canShare({ files: [zipFile] })) {
         try {
           await navigator.share({
             files: [zipFile],
-            title: 'Cuadros Stop Motion',
-            text: 'Aquí están mis cuadros en JPG!'
+            title: 'Mi Película Stop Motion',
+            text: '¡Aquí están los cuadros de mi tira de película!'
           });
           status.innerText = '¡ZIP compartido con éxito!';
           return;
@@ -1034,14 +930,14 @@
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = "stopmotion_frames.zip";
+      a.download = "pelicula_stopmotion.zip";
       a.className = "btn btn-purple";
-      a.innerText = "⬇️ Descargar .ZIP (JPGs)";
+      a.innerText = "⬇️ Descargar .ZIP con todos los Cuadros";
       status.innerHTML = '';
       status.appendChild(a);
     }
 
-    // Exportar Video
+    // Exportar Video MP4
     async function createVideoBlob(loopCount = 3) {
       const recCanvas = document.createElement('canvas');
       recCanvas.width = outWidth;
@@ -1088,29 +984,29 @@
 
     async function shareVideoOrGif() {
       const status = document.getElementById('exportStatus');
-      status.innerText = 'Preparando para WhatsApp...';
+      status.innerText = 'Preparando video para WhatsApp...';
 
       const vidData = await createVideoBlob(3);
       if (vidData) {
-        const file = new File([vidData.blob], `animacion.${vidData.ext}`, { type: vidData.mimeType });
+        const file = new File([vidData.blob], `pelicula.${vidData.ext}`, { type: vidData.mimeType });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           try {
             await navigator.share({
               files: [file],
-              title: 'Mi Stop Motion',
-              text: '¡Mira mi animación stop motion!'
+              title: 'Mi Película Stop Motion',
+              text: '¡Mira la película stop motion que creé!'
             });
-            status.innerText = '¡Compartido!';
+            status.innerText = '¡Compartido con éxito!';
             return;
           } catch(err) {}
         }
       }
-      status.innerHTML = `<a href="https://api.whatsapp.com/send?text=Mira%20mi%20stop%20motion!" target="_blank" class="btn btn-wa">Abrir WhatsApp</a>`;
+      status.innerHTML = `<a href="https://api.whatsapp.com/send?text=Mira%20mi%20pelicula%20stop%20motion!" target="_blank" class="btn btn-wa">Abrir WhatsApp</a>`;
     }
 
     async function exportVideoFile() {
       const status = document.getElementById('exportStatus');
-      status.innerText = 'Procesando video...';
+      status.innerText = 'Procesando video MP4...';
       const vidData = await createVideoBlob(3);
 
       if (!vidData) {
@@ -1121,16 +1017,16 @@
       const url = URL.createObjectURL(vidData.blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `stopmotion.${vidData.ext}`;
+      a.download = `pelicula_stopmotion.${vidData.ext}`;
       a.className = 'btn btn-blue';
-      a.innerText = `⬇️ Descargar Video .${vidData.ext}`;
+      a.innerText = `⬇️ Descargar Video MP4`;
       status.innerHTML = '';
       status.appendChild(a);
     }
 
     function exportGifFile() {
       const status = document.getElementById('exportStatus');
-      status.innerText = 'Generando GIF...';
+      status.innerText = 'Generando GIF animado...';
       const imagesData = allFrames.map(f => f.toDataURL('image/jpeg', 0.9));
 
       gifshot.createGIF({
@@ -1141,14 +1037,12 @@
         numWorkers: 2
       }, function(obj) {
         if (!obj.error) {
-          status.innerHTML = `<a href="${obj.image}" download="stopmotion.gif" class="btn btn-green">⬇️ Descargar GIF</a>`;
+          status.innerHTML = `<a href="${obj.image}" download="pelicula_stopmotion.gif" class="btn btn-green">⬇️ Descargar GIF</a>`;
         } else {
           status.innerText = 'Error al generar GIF.';
         }
       });
     }
-
-    updateDimensions();
   </script>
 </body>
 </html>
